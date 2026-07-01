@@ -10,6 +10,10 @@
   - 仕様が明確で範囲が閉じた通常実装向けのサブエージェント定義です。
 - `plugins/claude/agents/senior-implementer.md`
   - 設計判断や広い影響範囲を伴う高難度実装向けのサブエージェント定義です。
+- `plugins/claude/agents/responsibility-boundary-reviewer.md`
+  - 実装済み diff の責務混在・境界違反・副作用分散を確認する専用 reviewer 定義です。
+- `plugins/claude/agents/refactor-patch-agent.md`
+  - reviewer の指摘範囲だけを最小修正するリファクタリング patch 専用エージェント定義です。
 
 ## 基本方針
 
