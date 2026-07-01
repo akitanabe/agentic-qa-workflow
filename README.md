@@ -4,7 +4,7 @@
 
 ## 内容
 
-- `plugins/claude/skills/agentic-qa-workflow/SKILL.md`
+- `plugins/claude/skills/delegate-implementation/SKILL.md`
   - タスク分割、worktree による隔離、委譲プロンプト、返却物の QA、最終検証の進め方を定義します。
 - `plugins/claude/agents/implementer.md`
   - 仕様が明確で範囲が閉じた通常実装向けのサブエージェント定義です。
@@ -17,7 +17,7 @@
 
 ## 使い方
 
-Claude の plugin/skill/agent 読み込み先に `plugins/claude` 配下を配置して利用します。実装を委譲する場合は、`agentic-qa-workflow` スキルの手順に従い、枝の難度に応じて `implementer` または `senior-implementer` を選択します。
+Claude の plugin/skill/agent 読み込み先に `plugins/claude` 配下を配置して利用します。実装を委譲する場合は、`delegate-implementation` スキルの手順に従い、枝の難度に応じて `implementer` または `senior-implementer` を選択します。
 
 ## License
 

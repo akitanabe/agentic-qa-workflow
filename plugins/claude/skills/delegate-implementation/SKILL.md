@@ -1,5 +1,5 @@
 ---
-name: agentic-qa-workflow
+name: delegate-implementation
 description: >-
   実装作業をサブエージェントに委譲しつつ、親エージェントがマネージャー兼 QA プランナーとして
   成果物の品質責任を負うための進め方。タスク分割・委譲プロンプトの組み立て・返却物の精査・
