@@ -1,6 +1,6 @@
 ---
 name: "refactor-patch-agent"
-description: "Responsibility Boundary Reviewer の指摘範囲だけを最小修正する patch 専用エージェント。仕様変更、ついで修正、大規模再設計、新規依存追加は行わない。"
+description: "責務境界レビューの指摘範囲だけを最小修正する patch 専用エージェント。仕様変更、ついで修正、大規模再設計、新規依存追加は行わない。"
 model: sonnet
 effort: high
 ---
