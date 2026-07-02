@@ -1,6 +1,6 @@
 ---
 name: "responsibility-boundary-reviewer"
-description: "実装済み diff を読み、責務混在・境界違反・副作用分散を確認する専用 reviewer。コード修正は行わず、判定と最小修正方針だけを返す。"
+description: "実装済み diff テキストを読み、責務混在・境界違反・副作用分散を確認する専用 reviewer。コード修正は行わず、判定と最小修正方針だけを返す。"
 model: opus
 effort: xhigh
 ---
