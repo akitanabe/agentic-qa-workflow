@@ -19,9 +19,14 @@
 
 このリポジトリの中心方針は、委譲しても品質責任を親エージェントが持つことです。サブエージェントは実装を担当し、親エージェントは分割、指示、受け入れ条件、テスト品質、最終検証を主導します。
 
-## 使い方
+## 配布
 
-Claude の plugin/skill/agent 読み込み先に `plugins/claude` 配下を配置して利用します。実装を委譲する場合は、`delegate-implementation` スキルの手順に従い、枝の難度に応じて `implementer` または `senior-implementer` を選択します。
+marketplace catalog は `.claude-plugin/marketplace.json` に置き、plugin 本体は `plugins/claude/` にまとめています。GitHub から追加する場合は次を使います。
+
+```text
+/plugin marketplace add akitanabe/agentic-qa-workflow
+/plugin install agentic-qa-workflow@agentic-qa-workflow-marketplace
+```
 
 ## License
 
