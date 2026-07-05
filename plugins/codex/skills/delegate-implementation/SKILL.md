@@ -17,6 +17,29 @@ description: >-
 サブエージェントや multi-agent tool が使える場合は、その tool contract に従って使う。使えない場合は
 委譲したふりをせず、親が直接作業するか、要求された委譲面が利用できないことを報告する。
 
+## Worker 確認
+
+最初に、委譲計画や全体フローへ進む前に Codex の custom agent リストを確認する。リストに
+`implementer`、`senior-implementer`、`responsibility-boundary-reviewer`、`refactor-patch-agent` が
+すべて表示されるなら、この確認だけで次へ進む。余分な filesystem 確認やコピーはしない。
+
+Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
+`install/agents/*.toml` に custom agent 定義を同梱するので、リストに不足がある場合だけ plugin の
+install 先から personal custom agents にコピーする。
+
+`PLUGIN_DIR` は、source checkout の `plugins/codex` または Codex が plugin を install した directory
+に置き換える。
+
+```text
+PLUGIN_DIR=<agentic-qa-workflow plugin directory>
+mkdir -p ~/.codex/agents
+cp "$PLUGIN_DIR"/install/agents/*.toml ~/.codex/agents/
+```
+
+コピーを実行した場合は、custom agent を現在の session へ確実に反映するため、ユーザーに Codex session
+の再起動を依頼し、その時点で処理を打ち切る。再起動後の新しい session で改めて依頼を受けてから、
+委譲計画と実装へ進む。
+
 ## 全体フロー
 
 1. タスクを「共有の土台」と「直列に受け入れる枝」に分ける。
@@ -65,19 +88,6 @@ worker には次を返させる。
 - 未コミット変更が残る場合は、その内容と理由
 
 ## Worker 選択
-
-Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
-`install/agents/*.toml` に custom agent 定義を同梱するので、利用環境では必要に応じて plugin の
-install 先から personal custom agents にコピーしてから使う。
-
-`PLUGIN_DIR` は、source checkout の `plugins/codex` または Codex が plugin を install した directory
-に置き換える。
-
-```text
-PLUGIN_DIR=<agentic-qa-workflow plugin directory>
-mkdir -p ~/.codex/agents
-cp "$PLUGIN_DIR"/install/agents/*.toml ~/.codex/agents/
-```
 
 custom agents が登録済みなら、次の agent 名を優先して使う。登録されていない、または現在の
 Codex 環境で agent 名を指定できない場合は、plugin 固有の agent 名に依存せず、prompt 内で同等の
