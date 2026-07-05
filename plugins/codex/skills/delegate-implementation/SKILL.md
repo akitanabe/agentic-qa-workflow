@@ -25,15 +25,18 @@ description: >-
 
 Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
 `install/agents/*.toml` に custom agent 定義を同梱するので、リストに不足がある場合だけ plugin の
-install 先から personal custom agents にコピーする。
+install 先から、plugin の利用スコープに合う custom agent directory へコピーする。
 
 `PLUGIN_DIR` は、source checkout の `plugins/codex` または Codex が plugin を install した directory
-に置き換える。
+に置き換える。`AGENT_DIR` は、ユーザーインストールとして使うなら `~/.codex/agents`、repo に閉じて
+使うなら `<repo>/.codex/agents` にする。
 
 ```text
 PLUGIN_DIR=<agentic-qa-workflow plugin directory>
-mkdir -p ~/.codex/agents
-cp "$PLUGIN_DIR"/install/agents/*.toml ~/.codex/agents/
+AGENT_DIR=~/.codex/agents
+# or: AGENT_DIR=<repo>/.codex/agents
+mkdir -p "$AGENT_DIR"
+cp "$PLUGIN_DIR"/install/agents/*.toml "$AGENT_DIR"/
 ```
 
 コピーを実行した場合は、custom agent を現在の session へ確実に反映するため、ユーザーに Codex session
