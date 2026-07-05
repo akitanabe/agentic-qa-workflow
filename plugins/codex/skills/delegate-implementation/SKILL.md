@@ -67,12 +67,16 @@ worker には次を返させる。
 ## Worker 選択
 
 Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
-`plugins/codex/install/agents/*.toml` に custom agent 定義を同梱するので、利用環境では必要に応じて
-その TOML を personal custom agents にコピーしてから使う。
+`install/agents/*.toml` に custom agent 定義を同梱するので、利用環境では必要に応じて plugin の
+install 先から personal custom agents にコピーしてから使う。
+
+`PLUGIN_DIR` は、source checkout の `plugins/codex` または Codex が plugin を install した directory
+に置き換える。
 
 ```text
+PLUGIN_DIR=<agentic-qa-workflow plugin directory>
 mkdir -p ~/.codex/agents
-cp plugins/codex/install/agents/*.toml ~/.codex/agents/
+cp "$PLUGIN_DIR"/install/agents/*.toml ~/.codex/agents/
 ```
 
 custom agents が登録済みなら、次の agent 名を優先して使う。登録されていない、または現在の
