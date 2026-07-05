@@ -8,7 +8,7 @@
       "name": "agentic-qa-workflow",
       "source": {
         "source": "local",
-        "path": "./plugins/agentic-qa-workflow"
+        "path": "./plugins/codex"
       },
       "policy": {
         "installation": "AVAILABLE",

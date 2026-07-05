@@ -6,7 +6,7 @@
 
 - `plugins/claude/skills/delegate-implementation/SKILL.md`
   - タスク分割、worktree による隔離、委譲プロンプト、返却物の QA、最終検証の進め方を定義します。
-- `plugins/agentic-qa-workflow/skills/delegate-implementation/SKILL.md`
+- `plugins/codex/skills/delegate-implementation/SKILL.md`
   - Codex plugin として利用するための同等の skill 定義です。Claude Code 固有の `Agent` / `subagent_type` には依存せず、Codex 側の利用可能なサブエージェント機能に合わせて委譲プロンプトを組み立てます。
 - `plugins/claude/agents/implementer.md`
   - 仕様が明確で範囲が閉じた通常実装向けのサブエージェント定義です。
@@ -32,7 +32,7 @@ Claude Code 用 marketplace catalog は `.claude-plugin/marketplace.json` に置
 
 ## Codex 配布
 
-Codex 用 marketplace catalog は `.agents/plugins/marketplace.json` に置き、plugin 本体は `plugins/agentic-qa-workflow/` にまとめています。ローカル checkout から使う場合は、repo 内の `.agents/plugins` を marketplace として追加し、`agentic-qa-workflow` plugin を有効化します。
+Codex 用 marketplace catalog は `.agents/plugins/marketplace.json` に置き、plugin 本体は `plugins/codex/` にまとめています。ローカル checkout から使う場合は、repo 内の `.agents/plugins` を marketplace として追加し、`agentic-qa-workflow` plugin を有効化します。
 
 ```text
 codex plugin marketplace add .agents/plugins
