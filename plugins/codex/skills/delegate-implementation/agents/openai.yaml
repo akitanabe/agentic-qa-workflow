@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delegate Implementation"
+  short_description: "Delegate implementation with parent QA"
+  default_prompt: "Use $delegate-implementation to split implementation work, delegate safely, and review the returned diff."
