@@ -66,15 +66,25 @@ worker には次を返させる。
 
 ## Worker 選択
 
-Codex 環境によって worker の起動方法は異なる。plugin 固有の agent 名に依存せず、prompt 内で次の
+Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
+`plugins/codex/install/agents/*.toml` に custom agent 定義を同梱するので、利用環境では必要に応じて
+その TOML を personal custom agents にコピーしてから使う。
+
+```text
+mkdir -p ~/.codex/agents
+cp plugins/codex/install/agents/*.toml ~/.codex/agents/
+```
+
+custom agents が登録済みなら、次の agent 名を優先して使う。登録されていない、または現在の
+Codex 環境で agent 名を指定できない場合は、plugin 固有の agent 名に依存せず、prompt 内で同等の
 role profile を使い分ける。
 
-| role profile | 使う場面 |
+| custom agent / role profile | 使う場面 |
 | --- | --- |
-| 通常 implementer | 仕様が明確で範囲が閉じた実装またはテスト追加。 |
-| senior implementer | 設計判断、複数 module への波及、非自明な algorithm / concurrency、誤実装の代償が大きい枝。 |
-| responsibility-boundary reviewer | 実装済み diff の責務混在、境界違反、副作用分散を確認する。ファイルは編集しない。 |
-| refactor patch worker | responsibility-boundary reviewer の指摘を解消する最小 patch だけを作る。 |
+| `implementer` / 通常 implementer | 仕様が明確で範囲が閉じた実装またはテスト追加。 |
+| `senior-implementer` / senior implementer | 設計判断、複数 module への波及、非自明な algorithm / concurrency、誤実装の代償が大きい枝。 |
+| `responsibility-boundary-reviewer` / responsibility-boundary reviewer | 実装済み diff の責務混在、境界違反、副作用分散を確認する。ファイルは編集しない。 |
+| `refactor-patch-agent` / refactor patch worker | responsibility-boundary reviewer の指摘を解消する最小 patch だけを作る。 |
 
 同じ worker conversation を継続できる環境では、段階ゲートや差し戻しにそれを使う。継続できない場合は、
 親が受け入れ済みの失敗テストや review input を枝へコミットしてから次フェーズを委譲する。
