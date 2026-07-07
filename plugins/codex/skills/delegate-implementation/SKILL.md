@@ -22,32 +22,6 @@ description: >-
 サブエージェントや multi-agent tool が使える場合は、その tool contract に従って使う。使えない場合は
 委譲したふりをせず、親が直接作業するか、要求された委譲面が利用できないことを報告する。
 
-## Worker 確認
-
-最初に、委譲計画や全体フローへ進む前に Codex の custom agent リストを確認する。リストに
-`implementer`、`senior-implementer`、`responsibility-boundary-reviewer`、`refactor-patch-agent` が
-すべて表示されるなら、この確認だけで次へ進む。余分な filesystem 確認やコピーはしない。
-
-Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
-`install/agents/*.toml` に custom agent 定義を同梱するので、リストに不足がある場合だけ plugin の
-install 先から、plugin の利用スコープに合う custom agent directory へコピーする。
-
-`PLUGIN_DIR` は、source checkout の `plugins/codex` または Codex が plugin を install した directory
-に置き換える。`AGENT_DIR` は、ユーザーインストールとして使うなら `~/.codex/agents`、repo に閉じて
-使うなら `<repo>/.codex/agents` にする。
-
-```text
-PLUGIN_DIR=<agentic-qa-workflow plugin directory>
-AGENT_DIR=~/.codex/agents
-# or: AGENT_DIR=<repo>/.codex/agents
-mkdir -p "$AGENT_DIR"
-cp "$PLUGIN_DIR"/install/agents/*.toml "$AGENT_DIR"/
-```
-
-コピーを実行した場合は、custom agent を現在の session へ確実に反映するため、ユーザーに Codex session
-の再起動を依頼し、その時点で処理を打ち切る。再起動後の新しい session で改めて依頼を受けてから、
-委譲計画と実装へ進む。
-
 ## 全体フロー
 
 1. **分割する** — タスクを「共有の土台」と「直列に受け入れる枝」に分ける。
@@ -171,7 +145,29 @@ worker には次を返させる。
 を見るため、統合ブランチの検証は「受け入れ済み baseline と組み合わせても壊れないか」を見るために行う。
 片方が green でももう片方を省略しない。
 
-## 難度に応じた worker 選択
+## Worker 選択
+
+worker を選ぶ前に Codex の custom agent リストを確認する。リストに `implementer`、`senior-implementer`、
+`responsibility-boundary-reviewer`、`refactor-patch-agent` がすべて表示されるなら、この確認だけで次へ進む。
+余分な filesystem 確認やコピーはしない。
+
+Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。agentic-qa-workflow plugin は
+`install/agents/*.toml` に custom agent 定義を同梱するので、リストに不足がある場合だけ plugin の install
+先から、plugin の利用スコープに合う custom agent directory へコピーする。
+
+`PLUGIN_DIR` は、source checkout の `plugins/codex` または Codex が plugin を install した directory
+に置き換える。ユーザーインストールとして使うなら `--user`、repo に閉じて使うなら `--repo <repo>` を
+選ぶ。
+
+```text
+PLUGIN_DIR=<agentic-qa-workflow plugin directory>
+"$PLUGIN_DIR"/install/install-agents.sh --user
+# or: "$PLUGIN_DIR"/install/install-agents.sh --repo <repo>
+```
+
+スクリプトを実行した場合は、custom agent を現在の session へ確実に反映するため、ユーザーに Codex
+session の再起動を依頼し、その時点で処理を打ち切る。再起動後の新しい session で改めて依頼を受けてから、
+custom agent リストを再確認し、委譲計画と実装へ進む。
 
 委譲先は難度で使い分ける。難度は「行数」でなく**判断の難しさ**で測る — 設計の自由度・影響範囲・
 ドメインの罠が多いほど上。custom agents が登録済みなら次の agent 名を優先して使う。登録されていない、
