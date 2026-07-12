@@ -1,0 +1,4 @@
+interface:
+  display_name: "Install Custom Agents"
+  short_description: "Check, install, or update bundled Codex agents"
+  default_prompt: "Use $install-custom-agents to check and install the bundled Codex custom agents without overwriting existing files without confirmation."

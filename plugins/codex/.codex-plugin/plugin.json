@@ -1,7 +1,7 @@
 {
   "name": "agentic-qa-workflow",
   "version": "1.0.0",
-  "description": "Delegate implementation work while the parent Codex agent keeps responsibility for planning, QA, review, and final verification.",
+  "description": "Install the bundled custom agents and delegate implementation while the parent Codex agent keeps responsibility for planning, QA, review, and final verification.",
   "author": {
     "name": "akitanabe"
   },
@@ -17,15 +17,16 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Agentic QA Workflow",
-    "shortDescription": "Delegate implementation with parent QA.",
-    "longDescription": "A Codex skill for splitting implementation work into serial worktree branches, delegating focused slices, reviewing returned diffs and tests, and keeping final quality responsibility with the parent agent.",
+    "shortDescription": "Install agents and delegate with parent QA.",
+    "longDescription": "Codex skills for safely installing or updating bundled custom agents and for splitting implementation work into serial worktree branches, delegating focused slices, reviewing returned diffs and tests, and keeping final quality responsibility with the parent agent.",
     "developerName": "akitanabe",
     "category": "Productivity",
     "capabilities": [
       "Write"
     ],
     "defaultPrompt": [
-      "Use $delegate-implementation to delegate this implementation with parent QA."
+      "Use $delegate-implementation to delegate this implementation with parent QA.",
+      "Use $install-custom-agents to check, install, or update the bundled custom agents."
     ]
   }
 }
