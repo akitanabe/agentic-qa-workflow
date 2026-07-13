@@ -28,6 +28,36 @@ GENERATED_TOML_WARNING = "# Generated from shared/. Do not edit directly."
 class BuildPluginAssetsCliTest(unittest.TestCase):
     """Verify the generator only through its documented command-line interface."""
 
+    def test_repository_codex_agents_use_role_appropriate_gpt_5_6_variants(
+        self,
+    ) -> None:
+        """Assign each Codex agent the GPT-5.6 variant suited to its role."""
+        expected_models = {
+            "implementer": "gpt-5.6-terra",
+            "senior-implementer": "gpt-5.6-sol",
+            "responsibility-boundary-reviewer": "gpt-5.6-sol",
+            "refactor-patch-agent": "gpt-5.6-terra",
+        }
+        for name, expected_model in expected_models.items():
+            with self.subTest(name=name):
+                source = (
+                    REPOSITORY_ROOT / "shared" / "agents" / f"{name}.md"
+                ).read_text(encoding="utf-8")
+                source_metadata = tomllib.loads(source.split("+++", 2)[1])
+                artifact_metadata = tomllib.loads(
+                    (
+                        REPOSITORY_ROOT
+                        / "plugins"
+                        / "codex"
+                        / "install"
+                        / "agents"
+                        / f"{name}.toml"
+                    ).read_text(encoding="utf-8")
+                )
+
+                self.assertEqual(expected_model, source_metadata["codex"]["model"])
+                self.assertEqual(expected_model, artifact_metadata["model"])
+
     def setUp(self) -> None:
         """Require the production CLI before constructing an isolated repository."""
         self.assertTrue(
