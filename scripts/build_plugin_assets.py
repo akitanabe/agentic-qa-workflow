@@ -19,6 +19,9 @@ AGENT_NAMES = (
     "implementer",
     "senior-implementer",
     "responsibility-boundary-reviewer",
+    "test-quality-reviewer",
+    "writing-principles-reviewer",
+    "security-side-effect-reviewer",
     "refactor-patch-agent",
 )
 VERSION_PATTERN = re.compile(
@@ -300,7 +303,7 @@ def parse_agent_source(
 
 
 def load_agents(root: Path, errors: list[Diagnostic]) -> list[AgentSource]:
-    """Load exactly the four fixed common agent source files."""
+    """Reject shared agent files outside the canonical distribution set."""
     directory = root / "shared/agents"
     if directory.is_dir():
         expected = {f"{name}.md" for name in AGENT_NAMES}

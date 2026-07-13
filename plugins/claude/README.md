@@ -12,6 +12,12 @@
   - 設計判断や広い影響範囲を伴う高難度実装を担当します。
 - `agents/responsibility-boundary-reviewer.md`
   - 実装済み diff の責務混在、境界違反、副作用分散を確認します。
+- `agents/test-quality-reviewer.md`
+  - 追加・変更されたテストの仕様対応、振る舞い、網羅性を確認します。
+- `agents/writing-principles-reviewer.md`
+  - コード、テスト、コミットログ、コメントにおける `How / What / Why / Why Not` の配置を確認します。
+- `agents/security-side-effect-reviewer.md`
+  - 外部 I/O、破壊的操作、機密データ、セキュリティ影響を確認します。
 - `agents/refactor-patch-agent.md`
   - reviewer が指摘した範囲だけを最小修正します。
 

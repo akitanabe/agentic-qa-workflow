@@ -19,7 +19,16 @@ AGENT_NAMES = (
     "implementer",
     "senior-implementer",
     "responsibility-boundary-reviewer",
+    "test-quality-reviewer",
+    "writing-principles-reviewer",
+    "security-side-effect-reviewer",
     "refactor-patch-agent",
+)
+REVIEWER_NAMES = (
+    "responsibility-boundary-reviewer",
+    "test-quality-reviewer",
+    "writing-principles-reviewer",
+    "security-side-effect-reviewer",
 )
 GENERATED_MARKDOWN_WARNING = "<!-- Generated from shared/. Do not edit directly. -->"
 GENERATED_TOML_WARNING = "# Generated from shared/. Do not edit directly."
@@ -67,6 +76,9 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "implementer": "gpt-5.6-terra",
             "senior-implementer": "gpt-5.6-sol",
             "responsibility-boundary-reviewer": "gpt-5.6-sol",
+            "test-quality-reviewer": "gpt-5.6-sol",
+            "writing-principles-reviewer": "gpt-5.6-sol",
+            "security-side-effect-reviewer": "gpt-5.6-sol",
             "refactor-patch-agent": "gpt-5.6-terra",
         }
         for name, expected_model in expected_models.items():
@@ -88,6 +100,41 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
                 self.assertEqual(expected_model, source_metadata["codex"]["model"])
                 self.assertEqual(expected_model, artifact_metadata["model"])
+
+    def test_repository_specialized_reviewers_define_their_review_contracts(self) -> None:
+        """Expose each review focus, common verdicts, and a read-only Codex role."""
+        expected_focus = {
+            "test-quality-reviewer": ("観測可能な振る舞い", "境界値", "異常系"),
+            "writing-principles-reviewer": ("How", "What", "Why", "Why Not"),
+            "security-side-effect-reviewer": ("認証", "冪等", "path traversal"),
+        }
+
+        for name, focus_terms in expected_focus.items():
+            with self.subTest(name=name):
+                source = (
+                    REPOSITORY_ROOT / "shared" / "agents" / f"{name}.md"
+                ).read_text(encoding="utf-8")
+                metadata = tomllib.loads(source.split("+++", 2)[1])
+
+                self.assertEqual("read-only", metadata["codex"]["sandbox_mode"])
+                for verdict in ("Pass", "Needs attention", "Blocker"):
+                    self.assertIn(verdict, source)
+                for term in focus_terms:
+                    self.assertIn(term, source)
+
+    def test_repository_readmes_list_all_distributed_agents(self) -> None:
+        """Make every bundled agent discoverable from both platform READMEs."""
+        claude_readme = (REPOSITORY_ROOT / "plugins" / "claude" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        codex_readme = (REPOSITORY_ROOT / "plugins" / "codex" / "README.md").read_text(
+            encoding="utf-8"
+        )
+
+        for name in AGENT_NAMES:
+            with self.subTest(name=name):
+                self.assertIn(f"agents/{name}.md", claude_readme)
+                self.assertIn(f"`{name}`", codex_readme)
 
     def setUp(self) -> None:
         """Require the production CLI before constructing an isolated repository."""
@@ -188,7 +235,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             self._skill_source(),
         )
         for name in AGENT_NAMES:
-            sandbox_mode = "read-only" if name == "responsibility-boundary-reviewer" else None
+            sandbox_mode = "read-only" if name in REVIEWER_NAMES else None
             self._write(
                 root,
                 f"shared/agents/{name}.md",
@@ -317,7 +364,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         return lines.index("---", 1) + 1
 
     def test_build_generates_all_assets_and_syncs_versions(self) -> None:
-        """Generate two skills, eight agents, and three synchronized versions."""
+        """Generate two skills, fourteen agents, and three synchronized versions."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._make_repository(root)
@@ -615,39 +662,36 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             self.assertEqual(expected_body, metadata["developer_instructions"])
 
     def test_build_handles_optional_codex_sandbox_mode(self) -> None:
-        """Emit sandbox_mode only for an agent whose Codex metadata defines it."""
+        """Emit sandbox_mode for reviewers and omit it for an implementation agent."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._make_repository(root)
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
 
-            reviewer = tomllib.loads(
-                (
-                    root
-                    / "plugins/codex/install/agents/responsibility-boundary-reviewer.toml"
-                ).read_text(encoding="utf-8")
-            )
             implementer = tomllib.loads(
                 (root / "plugins/codex/install/agents/implementer.toml").read_text(
                     encoding="utf-8"
                 )
             )
-            self.assertEqual("read-only", reviewer["sandbox_mode"])
             self.assertNotIn("sandbox_mode", implementer)
 
-            reviewer_text = (
-                root
-                / "plugins/codex/install/agents/responsibility-boundary-reviewer.toml"
-            ).read_text(encoding="utf-8")
-            self.assertLess(
-                reviewer_text.index("model_reasoning_effort ="),
-                reviewer_text.index("sandbox_mode ="),
-            )
-            self.assertLess(
-                reviewer_text.index("sandbox_mode ="),
-                reviewer_text.index("nickname_candidates ="),
-            )
+            for name in REVIEWER_NAMES:
+                with self.subTest(name=name):
+                    reviewer_text = (
+                        root / f"plugins/codex/install/agents/{name}.toml"
+                    ).read_text(encoding="utf-8")
+                    reviewer = tomllib.loads(reviewer_text)
+
+                    self.assertEqual("read-only", reviewer["sandbox_mode"])
+                    self.assertLess(
+                        reviewer_text.index("model_reasoning_effort ="),
+                        reviewer_text.index("sandbox_mode ="),
+                    )
+                    self.assertLess(
+                        reviewer_text.index("sandbox_mode ="),
+                        reviewer_text.index("nickname_candidates ="),
+                    )
 
     def test_build_rejects_invalid_agent_frontmatter_without_writing(self) -> None:
         """Reject schema, type, name, delimiter, and placeholder violations atomically."""

@@ -72,6 +72,9 @@ required_agents=(
   implementer.toml
   senior-implementer.toml
   responsibility-boundary-reviewer.toml
+  test-quality-reviewer.toml
+  writing-principles-reviewer.toml
+  security-side-effect-reviewer.toml
   refactor-patch-agent.toml
 )
 
@@ -147,6 +150,9 @@ Installed agents:
   implementer
   senior-implementer
   responsibility-boundary-reviewer
+  test-quality-reviewer
+  writing-principles-reviewer
+  security-side-effect-reviewer
   refactor-patch-agent
 
 IMPORTANT:
