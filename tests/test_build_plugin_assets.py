@@ -122,6 +122,76 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                 for term in focus_terms:
                     self.assertIn(term, source)
 
+    def test_repository_workflows_route_specialists_and_require_final_writing_review(
+        self,
+    ) -> None:
+        """Route specialists selectively and require a final writing review."""
+        workflows = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+        )
+        risk_routes = {
+            "responsibility-boundary-reviewer": "責務混在、設計境界、分散した副作用",
+            "test-quality-reviewer": "弱いテスト、欠けているケース、実装詳細に依存したテスト",
+            "writing-principles-reviewer": (
+                "コメント、命名、テスト名、コミットメッセージにおける "
+                "`How / What / Why / Why Not` の配置不備"
+            ),
+            "security-side-effect-reviewer": (
+                "外部 I/O、破壊的操作、機密データ、セキュリティ影響"
+            ),
+        }
+        required_rules = (
+            "ユーザーが専門 reviewer を明示的に要求した場合。",
+            "親が reviewer の責務と一致する具体的なリスクを特定した場合。",
+            "専門 reviewer を汎用コードレビューの代替にしない。",
+            (
+                "`writing-principles-reviewer` の完了ゲートを除き、対象リスクがない"
+                "専門 reviewer を無条件で起動しない。"
+            ),
+            "対象リスクと review 範囲を明示する。",
+            (
+                "`writing-principles-reviewer` は、実行しない明確な理由がない限り、"
+                "最終的な受け入れ判断の直前に必ず起動する。"
+            ),
+            "受け入れ対象の最終 diff を review 範囲として渡す。",
+            (
+                "親は完了直前に限らず、記述原則のリスクを特定した時点でも"
+                "適宜起動してよい。"
+            ),
+            (
+                "指摘を受けて差分を変更した場合は、更新後の最終 diff を"
+                "再度確認させる。"
+            ),
+            "具体的な理由と親が行った代替確認を最終報告に含める。",
+            "reviewer は最終的な受け入れ判断を行わない。",
+            "親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。",
+        )
+        undefined_mode_rules = ("選択した mode", "mode 名")
+
+        for path in workflows:
+            with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
+                workflow = path.read_text(encoding="utf-8")
+                normalized_workflow = "".join(workflow.split())
+
+                for name, risk in risk_routes.items():
+                    self.assertIn(f"| `{name}` | {risk} |", workflow)
+                for rule in required_rules:
+                    self.assertIn("".join(rule.split()), normalized_workflow)
+                for rule in undefined_mode_rules:
+                    self.assertNotIn("".join(rule.split()), normalized_workflow)
+
     def test_repository_readmes_list_all_distributed_agents(self) -> None:
         """Make every bundled agent discoverable from both platform READMEs."""
         claude_readme = (REPOSITORY_ROOT / "plugins" / "claude" / "README.md").read_text(
