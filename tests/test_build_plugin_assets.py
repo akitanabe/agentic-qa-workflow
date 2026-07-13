@@ -28,6 +28,67 @@ GENERATED_TOML_WARNING = "# Generated from shared/. Do not edit directly."
 class BuildPluginAssetsCliTest(unittest.TestCase):
     """Verify the generator only through its documented command-line interface."""
 
+    def test_repository_codex_skill_waits_for_each_worker_response(self) -> None:
+        """Keep Codex workers alive and waiting until each delegated task responds."""
+        source = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md"
+        ).read_text(encoding="utf-8")
+        codex_skill = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        claude_skill = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        required_instructions = (
+            "対象 worker ごとに `wait_agent` を繰り返し使い、完了通知または返答が返るまで待機する。",
+            "数分間の無応答を理由に worker を `shutdown` または `interrupt_agent` しない。",
+        )
+
+        for instruction in required_instructions:
+            self.assertIn(instruction, source)
+            self.assertIn(instruction, codex_skill)
+            self.assertNotIn(instruction, claude_skill)
+
+    def test_repository_codex_agents_use_role_appropriate_gpt_5_6_variants(
+        self,
+    ) -> None:
+        """Assign each Codex agent the GPT-5.6 variant suited to its role."""
+        expected_models = {
+            "implementer": "gpt-5.6-terra",
+            "senior-implementer": "gpt-5.6-sol",
+            "responsibility-boundary-reviewer": "gpt-5.6-sol",
+            "refactor-patch-agent": "gpt-5.6-terra",
+        }
+        for name, expected_model in expected_models.items():
+            with self.subTest(name=name):
+                source = (
+                    REPOSITORY_ROOT / "shared" / "agents" / f"{name}.md"
+                ).read_text(encoding="utf-8")
+                source_metadata = tomllib.loads(source.split("+++", 2)[1])
+                artifact_metadata = tomllib.loads(
+                    (
+                        REPOSITORY_ROOT
+                        / "plugins"
+                        / "codex"
+                        / "install"
+                        / "agents"
+                        / f"{name}.toml"
+                    ).read_text(encoding="utf-8")
+                )
+
+                self.assertEqual(expected_model, source_metadata["codex"]["model"])
+                self.assertEqual(expected_model, artifact_metadata["model"])
+
     def setUp(self) -> None:
         """Require the production CLI before constructing an isolated repository."""
         self.assertTrue(

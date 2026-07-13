@@ -8,7 +8,7 @@ effort = "high"
 
 [codex]
 description = "agentic-qa-workflow workflow implementer for clear, bounded implementation or test branches. Use only when the parent agent explicitly delegates a normal implementation slice."
-model = "gpt-5.5"
+model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
 nickname_candidates = ["Implementer", "Builder", "TDD Worker"]
 +++
