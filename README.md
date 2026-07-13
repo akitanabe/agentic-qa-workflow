@@ -9,7 +9,7 @@
 - `shared/skill/delegate-implementation.md`
   - タスク分割、worktree による隔離、委譲プロンプト、返却物の QA、最終検証の進め方を定義する共通原稿です。
 - `shared/agents/*.md`
-  - 通常実装、高難度実装、責務境界レビュー、指摘範囲の最小修正を担当する 4 種類の agent の共通原稿です。
+  - 通常実装、高難度実装、専門レビュー、指摘範囲の最小修正を担当する 7 種類の agent の共通原稿です。
 - `shared/terms.toml`
   - Claude Code と Codex で異なる用語を定義します。
 - `shared/VERSION`
