@@ -26,7 +26,9 @@ VERSION_PATTERN = re.compile(
 )
 TERM_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 PLACEHOLDER_PATTERN = re.compile(r"\{\{([^{}\n]+)\}\}")
-MARKER_LIKE_PATTERN = re.compile(r"<!--\s*([^\s]+)-only:(start|end)\s*-->")
+MARKER_LIKE_PATTERN = re.compile(
+    r"<!--\s*[A-Za-z0-9_-]+-only(?:\s*:\s*[A-Za-z0-9_-]*)?\s*-->"
+)
 MARKERS = {
     "<!-- claude-only:start -->": ("claude", "start"),
     "<!-- claude-only:end -->": ("claude", "end"),

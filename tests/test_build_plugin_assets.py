@@ -342,13 +342,23 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                 "<!-- claude-only:start -->\ntext\n<!-- codex-only:end -->\n"
             ),
             "unclosed": "<!-- claude-only:start -->\ntext\n",
+            "unknown action": "<!-- claude-only:begin -->\n",
+            "missing action": "<!-- claude-only -->\n",
         }
         for label, invalid in invalid_sources.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 self._make_repository(root)
                 source = root / "shared/skill/delegate-implementation.md"
-                source.write_text(invalid, encoding="utf-8", newline="")
+                source.write_text(
+                    source.read_text(encoding="utf-8").replace(
+                        "# Delegation\n",
+                        f"# Delegation\n{invalid}",
+                        1,
+                    ),
+                    encoding="utf-8",
+                    newline="",
+                )
                 before = self._snapshot(self._generated_paths(root))
 
                 stderr = self._assert_validation_error(
@@ -361,6 +371,33 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                     stderr,
                     r"shared/skill/delegate-implementation\.md:\d+",
                 )
+                self.assertIn("marker", stderr.lower())
+
+    def test_build_preserves_unrelated_html_comments(self) -> None:
+        """Keep ordinary HTML comments that are not platform marker syntax."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._make_repository(root)
+            source = root / "shared/skill/delegate-implementation.md"
+            comment = "<!-- ordinary documentation note -->"
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "# Delegation\n",
+                    f"# Delegation\n{comment}\n",
+                    1,
+                ),
+                encoding="utf-8",
+                newline="",
+            )
+
+            result = self._run(root)
+
+            self.assertEqual(0, result.returncode, result)
+            for platform in ("claude", "codex"):
+                generated = (
+                    root / f"plugins/{platform}/skills/delegate-implementation/SKILL.md"
+                ).read_text(encoding="utf-8")
+                self.assertIn(comment, generated)
 
     def test_build_validates_each_rendered_skill_frontmatter_and_body(self) -> None:
         """Reject missing YAML frontmatter and empty bodies for both rendered skills."""
