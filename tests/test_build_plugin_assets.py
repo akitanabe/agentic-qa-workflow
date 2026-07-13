@@ -156,6 +156,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "ユーザーが専門 reviewer を明示的に要求した場合。",
             "親が reviewer の責務と一致する具体的なリスクを特定した場合。",
             "専門 reviewer を汎用コードレビューの代替にしない。",
+            "専門 reviewer は mode 名だけを理由に一律起動しない。",
             (
                 "`writing-principles-reviewer` の完了ゲートを除き、対象リスクがない"
                 "専門 reviewer を無条件で起動しない。"
@@ -178,7 +179,6 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "reviewer は最終的な受け入れ判断を行わない。",
             "親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。",
         )
-        undefined_mode_rules = ("選択した mode", "mode 名")
 
         for path in workflows:
             with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
@@ -189,8 +189,111 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                     self.assertIn(f"| `{name}` | {risk} |", workflow)
                 for rule in required_rules:
                     self.assertIn("".join(rule.split()), normalized_workflow)
-                for rule in undefined_mode_rules:
-                    self.assertNotIn("".join(rule.split()), normalized_workflow)
+
+    def test_repository_workflows_select_delegation_modes_without_crossing_direct_boundary(
+        self,
+    ) -> None:
+        """Select delegation modes while keeping direct work outside the skill."""
+        workflows = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+        )
+        required_rules = (
+            "`direct` は親が実装する、この skill の外にある経路である。",
+            "タスク規模だけでこの skill を発火しない。",
+            "`direct` が明示された場合も、この skill を発火しない。",
+            "`lite` / `standard` / `strict` の明示は委譲要求を兼ねる。",
+            "委譲だけが明示され mode が指定されていない場合は `standard` を選ぶ。",
+            "具体的なリスクがある場合は `strict` へ引き上げる。",
+            "`lite` を自動選択しない。",
+            "`direct` と委譲が同時に指定された場合は、実装前にユーザーへ確認する。",
+            "委譲 mode の強度は `lite < standard < strict` とする。",
+            "mode を引き上げた場合は、その具体的なリスクをユーザーへ報告する。",
+            "ユーザーが明示した mode を親都合で引き下げない。",
+            "`direct` から委譲へ変更する場合は、ユーザーへ確認する。",
+            "仕様が曖昧な場合は mode を選ぶ前に実装を止め、ユーザーへ確認する。",
+        )
+        obsolete_classifications = (
+            "枝の種別",
+            "軽い修正・明確な仕様",
+            "通常実装（既定）",
+            "重要・高リスク実装",
+        )
+
+        for path in workflows:
+            with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
+                workflow = path.read_text(encoding="utf-8")
+                normalized_workflow = "".join(workflow.split())
+
+                for rule in required_rules:
+                    self.assertIn("".join(rule.split()), normalized_workflow)
+                for classification in obsolete_classifications:
+                    self.assertNotIn(classification, workflow)
+
+    def test_repository_workflows_apply_mode_specific_qa_and_parent_verification(
+        self,
+    ) -> None:
+        """Apply each delegation mode's QA strength and retain parent verification."""
+        workflows = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+        )
+        mode_contracts = (
+            (
+                "| `lite` |",
+                "親は返却の diff とテストを確認し、focused test で green を確認する。",
+            ),
+            (
+                "| `standard` |",
+                "AC→テスト対応表、境界値、異常系、Red 時点の失敗出力を要求する。",
+            ),
+            (
+                "| `strict` |",
+                "テスト計画→失敗テスト→実装の段階ゲートに分ける。",
+            ),
+        )
+        required_rules = (
+            "- 委譲 mode: <lite / standard / strict>",
+            "`standard` と `strict` では、返却時に「AC-n → それを検証するテスト名 → "
+            "期待値の根拠（仕様のどこから導いたか）」の対応表を必ず付けること。",
+            "`lite` では、親が明示した場合だけ対応表と Red 時点の失敗出力を付けること。",
+            "`standard` と `strict` では全観点を手を動かして確認する。",
+            "`lite` では観点0（diff を読む）と観点5（自分で green を確認）に絞ってよい。",
+            "全ての委譲 mode で、親による統合後の検証と最終的な受け入れ判断を省略しない。",
+        )
+
+        for path in workflows:
+            with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
+                workflow = path.read_text(encoding="utf-8")
+                normalized_workflow = "".join(workflow.split())
+
+                for mode, contract in mode_contracts:
+                    self.assertIn(mode, workflow)
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+                for rule in required_rules:
+                    self.assertIn("".join(rule.split()), normalized_workflow)
 
     def test_repository_readmes_list_all_distributed_agents(self) -> None:
         """Make every bundled agent discoverable from both platform READMEs."""
