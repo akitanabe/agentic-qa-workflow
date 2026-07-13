@@ -215,7 +215,6 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "`direct` が明示された場合も、この skill を発火しない。",
             "`lite` / `standard` / `strict` の明示は委譲要求を兼ねる。",
             "委譲だけが明示され mode が指定されていない場合は `standard` を選ぶ。",
-            "具体的なリスクがある場合は `strict` へ引き上げる。",
             "`lite` を自動選択しない。",
             "`direct` と委譲が同時に指定された場合は、実装前にユーザーへ確認する。",
             "委譲 mode の強度は `lite < standard < strict` とする。",
@@ -223,6 +222,27 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "ユーザーが明示した mode を親都合で引き下げない。",
             "`direct` から委譲へ変更する場合は、ユーザーへ確認する。",
             "仕様が曖昧な場合は mode を選ぶ前に実装を止め、ユーザーへ確認する。",
+            "`lite` の選択条件を満たさなくなった場合は `standard` 以上へ引き上げる。",
+            "`standard` では扱えないリスクが判明した場合は `strict` へ引き上げる。",
+        )
+        route_contracts = (
+            (
+                "| `direct` |",
+                "委譲要求がなく、仕様が明確で影響範囲が閉じ、親が直接処理する変更。",
+            ),
+            (
+                "| `lite` |",
+                "ユーザーが明示し、仕様が明確で影響範囲が局所的、容易に戻せる変更。",
+            ),
+            (
+                "| `standard` |",
+                "通常の実装委譲、または mode 未指定の明示的な委譲。",
+            ),
+            (
+                "| `strict` |",
+                "`strict` が明示された変更、または高リスク、影響範囲が広い、"
+                "誤実装の代償が大きい変更。",
+            ),
         )
         obsolete_classifications = (
             "枝の種別",
@@ -238,6 +258,9 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
                 for rule in required_rules:
                     self.assertIn("".join(rule.split()), normalized_workflow)
+                for route, contract in route_contracts:
+                    self.assertIn(route, workflow)
+                    self.assertIn("".join(contract.split()), normalized_workflow)
                 for classification in obsolete_classifications:
                     self.assertNotIn(classification, workflow)
 
@@ -282,6 +305,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "`standard` と `strict` では全観点を手を動かして確認する。",
             "`lite` では観点0（diff を読む）と観点5（自分で green を確認）に絞ってよい。",
             "全ての委譲 mode で、親による統合後の検証と最終的な受け入れ判断を省略しない。",
+            "`direct` でも、親は必要なテストと検証を実行し、diff review と最終報告を行う。",
         )
 
         for path in workflows:
