@@ -3,7 +3,7 @@ name = "test-quality-reviewer"
 
 [claude]
 description = "追加・変更されたテストが受け入れ条件と対応し、観測可能な振る舞い、境界値、異常系を意味のある形で検証しているか確認する専用 reviewer。コードやテストは修正しない。"
-model = "sonnet"
+model = "opus"
 effort = "high"
 
 [codex]

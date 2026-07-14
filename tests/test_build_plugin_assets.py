@@ -116,8 +116,8 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         expected_profiles = {
             "implementer": ("sonnet", "medium"),
             "senior-implementer": ("opus", "high"),
-            "responsibility-boundary-reviewer": ("sonnet", "high"),
-            "test-quality-reviewer": ("sonnet", "high"),
+            "responsibility-boundary-reviewer": ("opus", "xhigh"),
+            "test-quality-reviewer": ("opus", "high"),
             "writing-principles-reviewer": ("sonnet", "medium"),
             "security-side-effect-reviewer": ("fable", "high"),
             "refactor-patch-agent": ("sonnet", "low"),
