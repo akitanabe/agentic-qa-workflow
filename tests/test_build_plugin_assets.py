@@ -158,6 +158,27 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                 for term in focus_terms:
                     self.assertIn(term, source)
 
+    def test_security_reviewer_is_defensive_and_detection_only(self) -> None:
+        """Keep security review defensive, actionable, and inside its assigned scope."""
+        paths = (
+            REPOSITORY_ROOT / "shared/agents/security-side-effect-reviewer.md",
+            REPOSITORY_ROOT / "plugins/claude/agents/security-side-effect-reviewer.md",
+            REPOSITORY_ROOT
+            / "plugins/codex/install/agents/security-side-effect-reviewer.toml",
+        )
+        required_contracts = (
+            "攻撃コードや悪用手順の作成は一切行いません",
+            "あなたは検出役です",
+            "コードの修正は専門 agent が担当します",
+            "指摘は修正担当がそのまま着手できる粒度・形式で出力してください",
+            "レビュー範囲外の改善提案（命名、責務分離など）は行いません",
+        )
+
+        for path in paths:
+            content = path.read_text(encoding="utf-8")
+            for contract in required_contracts:
+                self.assertIn(contract, content, path)
+
     def test_repository_workflows_route_specialists_and_require_final_writing_review(
         self,
     ) -> None:
