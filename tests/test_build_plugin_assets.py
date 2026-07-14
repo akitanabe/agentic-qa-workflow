@@ -109,6 +109,34 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                     artifact_metadata["model_reasoning_effort"],
                 )
 
+    def test_repository_claude_agents_use_role_appropriate_model_profiles(
+        self,
+    ) -> None:
+        """Assign each Claude agent the model and effort suited to its role."""
+        expected_profiles = {
+            "implementer": ("sonnet", "medium"),
+            "senior-implementer": ("opus", "high"),
+            "responsibility-boundary-reviewer": ("sonnet", "high"),
+            "test-quality-reviewer": ("sonnet", "high"),
+            "writing-principles-reviewer": ("sonnet", "medium"),
+            "security-side-effect-reviewer": ("fable", "high"),
+            "refactor-patch-agent": ("sonnet", "low"),
+        }
+        for name, (expected_model, expected_effort) in expected_profiles.items():
+            with self.subTest(name=name):
+                source = (
+                    REPOSITORY_ROOT / "shared" / "agents" / f"{name}.md"
+                ).read_text(encoding="utf-8")
+                source_metadata = tomllib.loads(source.split("+++", 2)[1])
+                artifact = (
+                    REPOSITORY_ROOT / "plugins" / "claude" / "agents" / f"{name}.md"
+                ).read_text(encoding="utf-8")
+
+                self.assertEqual(expected_model, source_metadata["claude"]["model"])
+                self.assertEqual(expected_effort, source_metadata["claude"]["effort"])
+                self.assertIn(f"model: {expected_model}\n", artifact)
+                self.assertIn(f"effort: {expected_effort}\n", artifact)
+
     def test_repository_specialized_reviewers_define_their_review_contracts(self) -> None:
         """Expose each review focus, common verdicts, and a read-only Codex role."""
         expected_focus = {

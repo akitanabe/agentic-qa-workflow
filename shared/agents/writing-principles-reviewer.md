@@ -3,8 +3,8 @@ name = "writing-principles-reviewer"
 
 [claude]
 description = "コード、テスト、コミットログ、コードコメントが How・What・Why・Why Not の適切な役割を担い、命名と構造が自己説明的か確認する専用 reviewer。ファイルは修正しない。"
-model = "opus"
-effort = "xhigh"
+model = "sonnet"
+effort = "medium"
 
 [codex]
 description = "Review naming and the placement of How, What, Why, and Why Not across code, tests, commit messages, and comments. Report findings only and do not edit files."
