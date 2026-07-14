@@ -8,8 +8,8 @@ effort = "high"
 
 [codex]
 description = "Apply the smallest patch that resolves responsibility-boundary review findings. Do not change behavior, broaden scope, redesign broadly, or add dependencies."
-model = "gpt-5.6-terra"
-model_reasoning_effort = "medium"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "high"
 nickname_candidates = ["Patch Worker", "Refactor Patch", "Boundary Fixer"]
 +++
 

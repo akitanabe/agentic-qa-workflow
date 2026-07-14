@@ -68,20 +68,20 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             self.assertIn(instruction, codex_skill)
             self.assertNotIn(instruction, claude_skill)
 
-    def test_repository_codex_agents_use_role_appropriate_gpt_5_6_variants(
+    def test_repository_codex_agents_use_role_appropriate_model_profiles(
         self,
     ) -> None:
-        """Assign each Codex agent the GPT-5.6 variant suited to its role."""
-        expected_models = {
-            "implementer": "gpt-5.6-terra",
-            "senior-implementer": "gpt-5.6-sol",
-            "responsibility-boundary-reviewer": "gpt-5.6-sol",
-            "test-quality-reviewer": "gpt-5.6-sol",
-            "writing-principles-reviewer": "gpt-5.6-sol",
-            "security-side-effect-reviewer": "gpt-5.6-sol",
-            "refactor-patch-agent": "gpt-5.6-terra",
+        """Assign each Codex agent the model and effort suited to its role."""
+        expected_profiles = {
+            "implementer": ("gpt-5.6-luna", "xhigh"),
+            "senior-implementer": ("gpt-5.6-terra", "high"),
+            "responsibility-boundary-reviewer": ("gpt-5.6-terra", "xhigh"),
+            "test-quality-reviewer": ("gpt-5.6-terra", "high"),
+            "writing-principles-reviewer": ("gpt-5.6-luna", "xhigh"),
+            "security-side-effect-reviewer": ("gpt-5.6-sol", "high"),
+            "refactor-patch-agent": ("gpt-5.6-luna", "high"),
         }
-        for name, expected_model in expected_models.items():
+        for name, (expected_model, expected_effort) in expected_profiles.items():
             with self.subTest(name=name):
                 source = (
                     REPOSITORY_ROOT / "shared" / "agents" / f"{name}.md"
@@ -100,6 +100,14 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
                 self.assertEqual(expected_model, source_metadata["codex"]["model"])
                 self.assertEqual(expected_model, artifact_metadata["model"])
+                self.assertEqual(
+                    expected_effort,
+                    source_metadata["codex"]["model_reasoning_effort"],
+                )
+                self.assertEqual(
+                    expected_effort,
+                    artifact_metadata["model_reasoning_effort"],
+                )
 
     def test_repository_specialized_reviewers_define_their_review_contracts(self) -> None:
         """Expose each review focus, common verdicts, and a read-only Codex role."""

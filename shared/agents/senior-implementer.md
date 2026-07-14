@@ -8,7 +8,7 @@ effort = "xhigh"
 
 [codex]
 description = "agentic-qa-workflow senior implementer for delegated branches that involve design judgment, broad module impact, non-trivial algorithms, concurrency, or high cost of mistakes."
-model = "gpt-5.6-sol"
+model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 nickname_candidates = ["Senior Implementer", "Design Worker", "Principal Builder"]
 +++

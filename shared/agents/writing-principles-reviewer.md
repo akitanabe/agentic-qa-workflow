@@ -8,8 +8,8 @@ effort = "xhigh"
 
 [codex]
 description = "Review naming and the placement of How, What, Why, and Why Not across code, tests, commit messages, and comments. Report findings only and do not edit files."
-model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"
 nickname_candidates = ["Writing Principles Reviewer", "Writing Reviewer", "Documentation Reviewer"]
 +++
