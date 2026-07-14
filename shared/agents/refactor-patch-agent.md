@@ -4,7 +4,7 @@ name = "refactor-patch-agent"
 [claude]
 description = "責務境界レビューの指摘範囲だけを最小修正する patch 専用エージェント。仕様変更、ついで修正、大規模再設計、新規依存追加は行わない。"
 model = "sonnet"
-effort = "high"
+effort = "low"
 
 [codex]
 description = "Apply the smallest patch that resolves responsibility-boundary review findings. Do not change behavior, broaden scope, redesign broadly, or add dependencies."

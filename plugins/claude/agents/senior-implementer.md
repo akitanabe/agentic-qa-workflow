@@ -1,8 +1,8 @@
 ---
 name: "senior-implementer"
-description: "agentic-qa-workflow ワークフロー専用の高難度実装者。設計判断を伴う・複数モジュールに波及する・非自明なアルゴリズム/並行性を含む・誤実装の代償が大きい枝を、Opus + effort xhigh で実装する。親（マネージャー）が subagent_type で明示的に選ぶ前提で使う。自動委譲用ではない（明示指示がない限り起動しない）。通常の・仕様が明確で範囲が閉じた枝は implementer を使う。"
+description: "agentic-qa-workflow ワークフロー専用の高難度実装者。設計判断を伴う・複数モジュールに波及する・非自明なアルゴリズム/並行性を含む・誤実装の代償が大きい枝を、Opus + effort high で実装する。親（マネージャー）が subagent_type で明示的に選ぶ前提で使う。自動委譲用ではない（明示指示がない限り起動しない）。通常の・仕様が明確で範囲が閉じた枝は implementer を使う。"
 model: opus
-effort: xhigh
+effort: high
 ---
 <!-- Generated from shared/. Do not edit directly. -->
 

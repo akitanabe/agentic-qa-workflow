@@ -1,8 +1,8 @@
 ---
 name: "writing-principles-reviewer"
 description: "コード、テスト、コミットログ、コードコメントが How・What・Why・Why Not の適切な役割を担い、命名と構造が自己説明的か確認する専用 reviewer。ファイルは修正しない。"
-model: opus
-effort: xhigh
+model: sonnet
+effort: medium
 ---
 <!-- Generated from shared/. Do not edit directly. -->
 
