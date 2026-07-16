@@ -14,12 +14,12 @@
   - 実装済み diff の責務混在、境界違反、副作用分散を確認します。
 - `agents/test-quality-reviewer.md`
   - 追加・変更されたテストの仕様対応、振る舞い、網羅性を確認します。
-- `agents/writing-principles-reviewer.md`
-  - コード、テスト、コミットログ、コメントにおける `How / What / Why / Why Not` の配置を確認します。
+- `agents/writing-principles-refactorer.md`
+  - `How / What / Why / Why Not` の配置、命名、説明を確認し、振る舞いを変えない局所的な問題を修正します。
 - `agents/security-side-effect-reviewer.md`
   - 外部 I/O、破壊的操作、機密データ、セキュリティ影響を確認します。
-- `agents/refactor-patch-agent.md`
-  - reviewer が指摘した範囲だけを最小修正します。
+- `agents/review-patch-refactorer.md`
+  - 専門 reviewer が具体的に指摘した範囲だけを、振る舞いを変えずに最小修正します。
 
 これらの skill と agent 定義はリポジトリの `shared/` から生成されています。生成済みファイルを直接編集せず、共通原稿を更新してください。開発方法は[ルート README](../../README.md)を参照してください。
 

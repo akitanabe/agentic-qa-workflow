@@ -73,9 +73,9 @@ required_agents=(
   senior-implementer.toml
   responsibility-boundary-reviewer.toml
   test-quality-reviewer.toml
-  writing-principles-reviewer.toml
+  writing-principles-refactorer.toml
   security-side-effect-reviewer.toml
-  refactor-patch-agent.toml
+  review-patch-refactorer.toml
 )
 
 if [[ ! -f "$version_file" ]]; then
@@ -151,9 +151,9 @@ Installed agents:
   senior-implementer
   responsibility-boundary-reviewer
   test-quality-reviewer
-  writing-principles-reviewer
+  writing-principles-refactorer
   security-side-effect-reviewer
-  refactor-patch-agent
+  review-patch-refactorer
 
 IMPORTANT:
   Restart the Codex session before using these custom agents.
