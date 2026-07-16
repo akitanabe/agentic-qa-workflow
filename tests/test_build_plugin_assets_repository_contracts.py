@@ -25,39 +25,85 @@ class BuildPluginAssetsRepositoryContractsTest(
     RepositoryContractSupport,
     unittest.TestCase,
 ):
+    def _assert_qa_report_reference_files_exist(self) -> None:
+        """Require the canonical and generated QA report reference files."""
+        paths = (
+            SHARED_SKILL_REFERENCE_PATHS["qa-report.md"],
+            GENERATED_SKILL_REFERENCE_PATHS["claude"]["qa-report.md"],
+            GENERATED_SKILL_REFERENCE_PATHS["codex"]["qa-report.md"],
+        )
+        for path in paths:
+            self.assertTrue(
+                (REPOSITORY_ROOT / path).is_file(),
+                f"missing QA report reference: {path}",
+            )
+
+    def _repository_qa_report_texts(self) -> dict[Path, str]:
+        """Return the canonical and generated QA report contracts."""
+        self._assert_qa_report_reference_files_exist()
+        return {
+            SHARED_SKILL_REFERENCE_PATHS["qa-report.md"]: self._repository_text(
+                SHARED_SKILL_REFERENCE_PATHS["qa-report.md"]
+            ),
+            GENERATED_SKILL_REFERENCE_PATHS["claude"][
+                "qa-report.md"
+            ]: self._repository_text(
+                GENERATED_SKILL_REFERENCE_PATHS["claude"]["qa-report.md"]
+            ),
+            GENERATED_SKILL_REFERENCE_PATHS["codex"][
+                "qa-report.md"
+            ]: self._repository_text(
+                GENERATED_SKILL_REFERENCE_PATHS["codex"]["qa-report.md"]
+            ),
+        }
+
     def test_repository_skill_uses_progressive_disclosure(self) -> None:
         """Keep the core workflow lean and route each detailed phase explicitly."""
-        skills = self._repository_skill_texts()
-        main_texts = (
-            skills.source_main,
-            skills.claude_main,
-            skills.codex_main,
-        )
+        main_texts = {
+            SHARED_SKILL_PATH: self._repository_text(SHARED_SKILL_PATH),
+            GENERATED_SKILL_PATHS["claude"]: self._repository_text(
+                GENERATED_SKILL_PATHS["claude"]
+            ),
+            GENERATED_SKILL_PATHS["codex"]: self._repository_text(
+                GENERATED_SKILL_PATHS["codex"]
+            ),
+        }
         reference_headings = {
             "implementation-branches.md": "# 実装枝の準備と委譲",
             "expert-selection.md": "# Expert 選択",
             "qa-and-integration.md": "# QA・修正・統合",
+            "qa-report.md": "# 永続 QA レポート",
         }
 
-        for main in main_texts:
-            self.assertLess(len(main.splitlines()), 300)
-            for name in SKILL_REFERENCE_NAMES:
-                self.assertIn(f"(references/{name})", main)
-            for heading in reference_headings.values():
-                self.assertNotIn(heading, main)
-            self.assertLess(
-                main.index("(references/implementation-branches.md)"),
-                main.index("(references/expert-selection.md)"),
-            )
-            self.assertLess(
-                main.index("(references/expert-selection.md)"),
-                main.index("先頭の枝だけを委譲する"),
-            )
-            self.assertLess(
-                main.index("先頭の枝だけを委譲する"),
-                main.index("(references/qa-and-integration.md)"),
-            )
+        for path, main in main_texts.items():
+            with self.subTest(path=path):
+                self.assertLess(len(main.splitlines()), 300)
+                for name in SKILL_REFERENCE_NAMES:
+                    self.assertIn(f"(references/{name})", main)
+                for heading in reference_headings.values():
+                    self.assertNotIn(heading, main)
+                self.assertLess(
+                    main.index("(references/implementation-branches.md)"),
+                    main.index("(references/expert-selection.md)"),
+                )
+                self.assertLess(
+                    main.index("(references/expert-selection.md)"),
+                    main.index("先頭の枝だけを委譲する"),
+                )
+                self.assertLess(
+                    main.index("先頭の枝だけを委譲する"),
+                    main.index("(references/qa-and-integration.md)"),
+                )
+                normalized = "".join(main.split())
+                conditional_reference = (
+                    "永続QAレポートの出力条件を満たす場合だけ"
+                    "[永続QAレポート](references/qa-report.md)を読む"
+                )
+                self.assertIn(conditional_reference, normalized)
+                self.assertEqual(1, main.count("(references/qa-report.md)"))
 
+        self._assert_qa_report_reference_files_exist()
+        skills = self._repository_skill_texts()
         for name, heading in reference_headings.items():
             self.assertIn(heading, skills.source_references[name])
             self.assertIn(heading, skills.claude_references[name])
@@ -77,6 +123,174 @@ class BuildPluginAssetsRepositoryContractsTest(
                     f"{GENERATED_MARKDOWN_WARNING}\n\n"
                 )
             )
+
+    def test_repository_qa_report_is_opt_in_single_run_parent_output(self) -> None:
+        """Write one optional report only when a delegated workflow requests it."""
+        required_contracts = (
+            "会話上の最終報告は常に行う。",
+            "永続 QA レポートは任意",
+            "`lite` / `standard` / `strict`",
+            "`direct` は対象外",
+            "既定では生成しない",
+            "ユーザーの明示的な要求",
+            "repository instruction",
+            "Acceptance Criteria",
+            "いずれかが要求した場合だけ",
+            "親の最終判断時に1回",
+            "1トップレベル workflow run につき1 report",
+            "複数の実装枝は同じ report へ列挙",
+            "`Accepted`",
+            "`Rejected`",
+            "`Needs revision`",
+            "未実行の検証",
+            "未統合の状態",
+            "最終判断は親だけが行う",
+            "sanitize できない場合は生成しない",
+            "生成しなかった理由を会話上の最終報告へ含める",
+        )
+
+        for path, report in self._repository_qa_report_texts().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_uses_safe_collision_free_report_paths(
+        self,
+    ) -> None:
+        """Derive a bounded direct-child path without traversal or overwrite."""
+        required_contracts = (
+            "repository root 相対の `.agentic-qa/reports/<slug>.md`",
+            "task ID または title",
+            "空なら branch",
+            "Unicode NFKC",
+            "前後の空白を除去",
+            "ASCII lowercase",
+            "非 `[a-z0-9]` の連続を `-`",
+            "連続する `-` と前後の `-` を除去",
+            "base は最大64文字",
+            "`delegated-implementation`",
+            "機密な入力名は使わず fallback",
+            "Windows 予約名には `qa-` prefix",
+            "`con`, `prn`, `aux`, `nul`, `com1`〜`com9`, `lpt1`〜`lpt9`",
+            "path separator を許可しない",
+            "`.` または `..` を許可しない",
+            "絶対 path を許可しない",
+            "reports 直下以外を許可しない",
+            "`ＡＢＣ １２３` は `abc-123`",
+            "title が `日本語`、branch が `Feature QA` なら `feature-qa`",
+            "title と branch が `日本語` なら `delegated-implementation`",
+            "`CON` は `qa-con`",
+            "既存 file を上書きしない",
+            "`<slug>-2.md`, `<slug>-3.md`",
+            "最初の空き",
+            "suffix 込みの stem は最大80文字",
+            "base の末尾を切る",
+            "既存 report の更新はユーザーが対象 path を明示した場合だけ",
+            "出力先または候補が symlink、directory、非通常 file なら停止",
+        )
+
+        for path, report in self._repository_qa_report_texts().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_keeps_git_and_retention_actions_explicit(
+        self,
+    ) -> None:
+        """Keep report instances outside implicit Git and deletion actions."""
+        required_contracts = (
+            "`agentic-qa-workflow` repository の template source と generated asset は tracked 配布物",
+            "利用先 repository で生成する report instance",
+            "既定では untracked / unstaged / uncommitted",
+            "`.gitignore` と `.git/info/exclude` を自動変更しない",
+            "`git status` に `??` として表示されてよい",
+            "既定では `git add`、stage、commit しない",
+            "ユーザーの明示的な要求または既存の repository policy",
+            "既存の実装 commit へ黙って amend しない",
+            "自動期限または自動 purge を行わない",
+            "明示的な削除または repository policy まで保持",
+            "reports 配下であることを確認してから削除",
+            "通常の削除 commit では Git 履歴から機密情報を消去できない",
+            "親の統合 checkout へ保存",
+            "削除予定の worker worktree へ保存しない",
+        )
+
+        for path, report in self._repository_qa_report_texts().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_persists_only_sanitized_evidence(self) -> None:
+        """Persist only minimal reviewed evidence without secrets or raw transcripts."""
+        forbidden_evidence = (
+            "会話全文",
+            "prompt",
+            "reviewer の生出力",
+            "command の全 log",
+            "token",
+            "password",
+            "cookie",
+            "Authorization",
+            "private key",
+            "`.env`",
+            "credential 付き URL",
+            "機密 query",
+            "個人情報",
+        )
+        allowed_evidence = (
+            "file は repository 相対 path",
+            "worktree は論理 ID、branch、cleanup 状態",
+            "Implementer は role 名",
+            "command は sanitize 済み文字列、status、短い要約",
+            "これらの機密情報と生の証跡を保存しない",
+            "保存直前に親が report 全体を確認",
+        )
+
+        for path, report in self._repository_qa_report_texts().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for evidence in forbidden_evidence:
+                    self.assertIn("".join(evidence.split()), normalized)
+                for evidence in allowed_evidence:
+                    self.assertIn("".join(evidence.split()), normalized)
+
+    def test_repository_qa_report_template_exposes_complete_parent_qa(self) -> None:
+        """Expose every decision and verification gap needed for parent acceptance."""
+        required_fields = (
+            "Sanitized task ID / title",
+            "Mode",
+            "Base commit",
+            "Integration checkout / commit",
+            "Implementation branches",
+            "Acceptance Criteria → test",
+            "Changed files",
+            "Verification",
+            "`Pass` / `Fail` / `Not run`",
+            "`Not run` は理由必須",
+            "Red / Green / Refactor",
+            "Responsibility boundaries",
+            "Test quality",
+            "Writing principles",
+            "Security / side effects",
+            "Integrated diff review",
+            "Residual risks",
+            "Parent decision",
+            "`Accepted` / `Rejected` / `Needs revision`",
+            "判断理由",
+            "Next action",
+            "reviewer を起動しなかった場合も理由を記録",
+            "対象 risk がないことは有効な理由",
+            "最終判断は親だけが記入",
+        )
+
+        for path, report in self._repository_qa_report_texts().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for field in required_fields:
+                    self.assertIn("".join(field.split()), normalized)
 
     def test_repository_workflow_normalizes_implementation_branch_boundaries(
         self,

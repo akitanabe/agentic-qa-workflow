@@ -43,6 +43,7 @@ SKILL_REFERENCE_NAMES = (
     "implementation-branches.md",
     "expert-selection.md",
     "qa-and-integration.md",
+    "qa-report.md",
 )
 SHARED_SKILL_ROOT = Path("shared/skill/delegate-implementation")
 SHARED_SKILL_PATH = SHARED_SKILL_ROOT / "SKILL.md"
