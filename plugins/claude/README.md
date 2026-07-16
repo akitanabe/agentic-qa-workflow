@@ -10,6 +10,10 @@
   - 仕様が明確で範囲が閉じた通常実装を担当します。
 - `agents/senior-implementer.md`
   - 設計判断や広い影響範囲を伴う高難度実装を担当します。
+- `agents/expert-implementer.md`
+  - 事前審査を通過した、親相当の推論能力が必要な実装を担当します。
+- `agents/expert-selection-reviewer.md`
+  - expert の高い実行コストを正当化する選択理由が揃っているか、起動前に審査します。
 - `agents/responsibility-boundary-reviewer.md`
   - 実装済み diff の責務混在、境界違反、副作用分散を確認します。
 - `agents/test-quality-reviewer.md`

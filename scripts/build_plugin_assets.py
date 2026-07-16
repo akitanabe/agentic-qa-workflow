@@ -18,6 +18,8 @@ PLATFORMS = ("claude", "codex")
 AGENT_NAMES = (
     "implementer",
     "senior-implementer",
+    "expert-implementer",
+    "expert-selection-reviewer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
     "writing-principles-refactorer",
