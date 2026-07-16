@@ -6,6 +6,8 @@
 
 - `skills/delegate-implementation/SKILL.md`
   - タスク分割、worktree 隔離、委譲、返却 diff とテストの QA、最終検証を定義します。
+- `skills/delegate-implementation/references/*.md`
+  - 実装枝、expert 選択、QA・統合の詳細を必要な段階で参照します。
 - `skills/install-custom-agents/SKILL.md`
   - 同梱 custom agent のインストール状況を確認し、安全に導入・更新します。
 - `install/agents/*.toml`

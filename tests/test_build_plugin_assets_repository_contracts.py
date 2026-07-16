@@ -10,10 +10,14 @@ from build_plugin_assets_test_support import (
     CLAUDE_MODEL_PROFILES,
     CLAUDE_PROFILE_PATH,
     CODEX_MODEL_PROFILES,
+    GENERATED_MARKDOWN_WARNING,
+    GENERATED_SKILL_REFERENCE_PATHS,
     GENERATED_SKILL_PATHS,
     REPOSITORY_ROOT,
     RepositoryContractSupport,
     SHARED_SKILL_PATH,
+    SHARED_SKILL_REFERENCE_PATHS,
+    SKILL_REFERENCE_NAMES,
 )
 
 
@@ -21,18 +25,211 @@ class BuildPluginAssetsRepositoryContractsTest(
     RepositoryContractSupport,
     unittest.TestCase,
 ):
+    def test_repository_skill_uses_progressive_disclosure(self) -> None:
+        """Keep the core workflow lean and route each detailed phase explicitly."""
+        skills = self._repository_skill_texts()
+        main_texts = (
+            skills.source_main,
+            skills.claude_main,
+            skills.codex_main,
+        )
+        reference_headings = {
+            "implementation-branches.md": "# 実装枝の準備と委譲",
+            "expert-selection.md": "# Expert 選択",
+            "qa-and-integration.md": "# QA・修正・統合",
+        }
+
+        for main in main_texts:
+            self.assertLess(len(main.splitlines()), 300)
+            for name in SKILL_REFERENCE_NAMES:
+                self.assertIn(f"(references/{name})", main)
+            for heading in reference_headings.values():
+                self.assertNotIn(heading, main)
+            self.assertLess(
+                main.index("(references/implementation-branches.md)"),
+                main.index("(references/expert-selection.md)"),
+            )
+            self.assertLess(
+                main.index("(references/expert-selection.md)"),
+                main.index("先頭の枝だけを委譲する"),
+            )
+            self.assertLess(
+                main.index("先頭の枝だけを委譲する"),
+                main.index("(references/qa-and-integration.md)"),
+            )
+
+        for name, heading in reference_headings.items():
+            self.assertIn(heading, skills.source_references[name])
+            self.assertIn(heading, skills.claude_references[name])
+            self.assertIn(heading, skills.codex_references[name])
+            self.assertFalse(
+                skills.source_references[name].startswith(
+                    GENERATED_MARKDOWN_WARNING
+                )
+            )
+            self.assertTrue(
+                skills.claude_references[name].startswith(
+                    f"{GENERATED_MARKDOWN_WARNING}\n\n"
+                )
+            )
+            self.assertTrue(
+                skills.codex_references[name].startswith(
+                    f"{GENERATED_MARKDOWN_WARNING}\n\n"
+                )
+            )
+
+    def test_repository_workflow_normalizes_implementation_branch_boundaries(
+        self,
+    ) -> None:
+        """Use one isolated branch lifecycle without silent direct fallback."""
+        workflows = self._repository_workflow_texts()
+        required_contract = (
+            "各実装枝は専用 worktree で隔離する。",
+            "worktree を用意できない場合は委譲を開始しない。",
+            "ユーザーの確認なく親の直接実装へ切り替えない。",
+            "共有土台の作成は、実装枝の委譲前に親が行える明示的な例外",
+            "返却後の機能修正を親が引き取る根拠にはしない。",
+            "4. **Refactor と再検証**",
+            "テスト計画では commit を作らない。",
+            "Red、Green、Refactor の各段階では、段階の変更を commit する。",
+            "最終返却では先頭から末尾までの commit SHA range を返す。",
+        )
+
+        for path, workflow in workflows.items():
+            with self.subTest(path=path):
+                normalized = "".join(workflow.split())
+                for contract in required_contract:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_expert_availability_rules_are_platform_specific(self) -> None:
+        """Keep unavailable expert profile names out of the other platform."""
+        source = self._repository_text(
+            SHARED_SKILL_REFERENCE_PATHS["expert-selection.md"]
+        )
+        claude = self._repository_text(
+            GENERATED_SKILL_REFERENCE_PATHS["claude"]["expert-selection.md"]
+        )
+        codex = self._repository_text(
+            GENERATED_SKILL_REFERENCE_PATHS["codex"]["expert-selection.md"]
+        )
+
+        self.assertIn("Fable", source)
+        self.assertIn("`gpt-5.6-sol`", source)
+        self.assertIn("Fable", claude)
+        self.assertNotIn("`gpt-5.6-sol`", claude)
+        self.assertIn("`gpt-5.6-sol`", codex)
+        self.assertNotIn("Fable", codex)
+
+    def test_repository_implementers_follow_mode_and_writing_contracts(self) -> None:
+        """Align every implementer with delegated stages and Why Not comments."""
+        for name in ("implementer", "senior-implementer", "expert-implementer"):
+            paths = (
+                Path("shared/agents") / f"{name}.md",
+                Path("plugins/claude/agents") / f"{name}.md",
+                Path("plugins/codex/install/agents") / f"{name}.toml",
+            )
+            for path in paths:
+                with self.subTest(name=name, path=path):
+                    content = self._repository_text(path)
+                    self.assertIn("委譲 mode", content)
+                    self.assertIn("指定された段階を越えない", content)
+                    self.assertIn("Why Not", content)
+                    self.assertIn("返却 commit SHA range", content)
+                    self.assertNotIn(
+                        "ロジック・制約・前提・テストの意図を残す",
+                        content,
+                    )
+
+        for name in ("implementer", "senior-implementer"):
+            source = self._repository_text(Path("shared/agents") / f"{name}.md")
+            self.assertIn(
+                "`lite` では親が求めた場合だけ Red 証跡と AC 対応表を返す",
+                source,
+            )
+            self.assertIn(
+                "`standard` では Red 証跡と AC 対応表を必ず返す",
+                source,
+            )
+
+    def test_repository_implementer_worktree_inputs_are_platform_specific(
+        self,
+    ) -> None:
+        """Assign worktree paths before Codex launch and after Claude launch."""
+        for name in ("implementer", "senior-implementer", "expert-implementer"):
+            claude = self._repository_text(
+                Path("plugins/claude/agents") / f"{name}.md"
+            )
+            codex = self._repository_text(
+                Path("plugins/codex/install/agents") / f"{name}.toml"
+            )
+
+            with self.subTest(name=name, platform="claude"):
+                self.assertIn("worktree の隔離条件", claude)
+                self.assertIn(
+                    "起動後に実際の worktree path と branch を確認",
+                    claude,
+                )
+                self.assertNotIn("絶対 worktree path と branch", claude)
+
+            with self.subTest(name=name, platform="codex"):
+                self.assertIn("絶対 worktree path と branch", codex)
+                self.assertIn(
+                    "親が指定した値と不一致なら着手せず返してください",
+                    codex,
+                )
+
+    def test_repository_reviewers_separate_boundary_and_safety_risks(self) -> None:
+        """Route placement concerns separately from security and failure safety."""
+        responsibility = self._repository_text(
+            Path("shared/agents/responsibility-boundary-reviewer.md")
+        )
+        security = self._repository_text(
+            Path("shared/agents/security-side-effect-reviewer.md")
+        )
+
+        self.assertIn("副作用をどの責務境界へ配置したか", responsibility)
+        self.assertIn(
+            "認可・機密性・破壊安全性の評価は対象外",
+            responsibility,
+        )
+        self.assertIn("認可、機密性、破壊安全性", security)
+        self.assertIn(
+            "命名や責務配置そのものの再設計は対象外",
+            security,
+        )
+        test_quality = self._repository_text(
+            Path("shared/agents/test-quality-reviewer.md")
+        )
+        self.assertIn(
+            "AC と diff から必要な追加 case を導出することは対象内",
+            test_quality,
+        )
+
     def test_repository_codex_skill_waits_for_each_worker_response(self) -> None:
         """Keep Codex workers alive and waiting until each delegated task responds."""
         skills = self._repository_skill_texts()
         required_instructions = (
             "対象 worker ごとに `wait_agent` を繰り返し使い、完了通知または返答が返るまで待機する。",
             "数分間の無応答を理由に worker を `shutdown` または `interrupt_agent` しない。",
+            "ユーザーが明示的に取り消した場合、または tool が回復不能な異常を報告した場合は例外",
         )
 
         for instruction in required_instructions:
             self.assertIn(instruction, skills.source)
             self.assertIn(instruction, skills.codex)
             self.assertNotIn(instruction, skills.claude)
+
+    def test_repository_codex_runs_the_integrated_review_gate(self) -> None:
+        """Prefer Codex /review before cleanup when the environment provides it."""
+        skills = self._repository_skill_texts()
+        instruction = (
+            "環境が提供する場合は `/review` を実行し、利用できない場合は"
+            "同等の統合済み diff review を親が行う。"
+        )
+
+        self.assertIn(instruction, skills.source_references["qa-and-integration.md"])
+        self.assertIn(instruction, skills.codex_references["qa-and-integration.md"])
+        self.assertNotIn(instruction, skills.claude_references["qa-and-integration.md"])
 
     def test_repository_skills_clean_up_only_after_the_final_gate(self) -> None:
         """Clean up platform resources only after every final gate has passed."""
@@ -80,7 +277,6 @@ class BuildPluginAssetsRepositoryContractsTest(
             "Acceptance Criteria",
             "対象範囲と変更禁止範囲",
             "最新の基準コミット",
-            "worktree path と branch 名",
             "コードから読み取れない確定済みの設計判断や制約",
             "委譲 mode と TDD 要件",
             "検証 command",
@@ -91,6 +287,11 @@ class BuildPluginAssetsRepositoryContractsTest(
         for item in required_data:
             for skill in skills.all_texts():
                 self.assertIn(item, skill)
+
+        self.assertIn("worktree の隔離条件", skills.source)
+        self.assertIn("worktree の隔離条件", skills.claude)
+        self.assertIn("絶対 worktree path と branch 名", skills.source)
+        self.assertIn("絶対 worktree path と branch 名", skills.codex)
 
     def test_repository_codex_agents_use_role_appropriate_model_profiles(
         self,
@@ -434,14 +635,16 @@ class BuildPluginAssetsRepositoryContractsTest(
             ),
             (
                 "| `strict` |",
-                "テスト計画→失敗テスト→実装の段階ゲートに分ける。",
+                "テスト計画→失敗テスト→実装→Refactor の段階ゲートに分ける。",
             ),
         )
         required_rules = (
             "- 委譲 mode: <lite / standard / strict>",
-            "`standard` と `strict` では、返却時に「AC-n → それを検証するテスト名 → "
-            "期待値の根拠（仕様のどこから導いたか）」の対応表を必ず付けること。",
-            "`lite` では、親が明示した場合だけ対応表と Red 時点の失敗出力を付けること。",
+            "`lite` では、親が明示した場合だけ AC 対応表と Red 時点の失敗出力を付けること。",
+            "`standard` では、Red 時点の失敗出力と",
+            "「AC-n → それを検証するテスト名 → 期待値の根拠（仕様のどこから導いたか）」"
+            "の対応表を必ず付けること。",
+            "最終返却には `standard` と同じ AC 対応表と Red 証跡を含める。",
             "`standard` と `strict` では全観点を手を動かして確認する。",
             "`lite` では観点0（diff を読む）と観点5（自分で green を確認）に絞ってよい。",
             "全ての委譲 mode で、親による統合後の検証と最終的な受け入れ判断を省略しない。",
