@@ -6,10 +6,10 @@
 
 編集元は `shared/` に集約しています。
 
-- `shared/skill/delegate-implementation.md`
-  - タスク分割、worktree による隔離、委譲プロンプト、返却物の QA、最終検証の進め方を定義する共通原稿です。
+- `shared/skill/delegate-implementation/`
+  - `SKILL.md` に workflow の核、`references/*.md` に実装枝、expert 選択、QA・統合の詳細を分けた共通原稿です。
 - `shared/agents/*.md`
-  - 通常実装、高難度実装、専門レビュー、指摘範囲の最小修正を担当する 7 種類の agent の共通原稿です。
+  - 通常実装、高難度実装、expert 実装、専門レビュー、指摘範囲の最小修正を担当する 9 種類の agent の共通原稿です。
 - `shared/terms.toml`
   - Claude Code と Codex で異なる用語を定義します。
 - `shared/VERSION`
@@ -18,8 +18,10 @@
 `scripts/build_plugin_assets.py` が共通原稿を platform ごとに変換し、次の配布物を生成します。
 
 - `plugins/claude/skills/delegate-implementation/SKILL.md`
+- `plugins/claude/skills/delegate-implementation/references/*.md`
 - `plugins/claude/agents/*.md`
 - `plugins/codex/skills/delegate-implementation/SKILL.md`
+- `plugins/codex/skills/delegate-implementation/references/*.md`
 - `plugins/codex/install/agents/*.toml`
 - 両 plugin の manifest version と `plugins/codex/install/VERSION`
 
@@ -48,7 +50,7 @@ python3 scripts/build_plugin_assets.py
 
 ```text
 python3 scripts/build_plugin_assets.py --check
-python3 -B -m unittest discover -s tests -p 'test_build_plugin_assets.py'
+python3 -B -m unittest discover -s tests -p 'test_build_plugin_assets*.py'
 ```
 
 ## License

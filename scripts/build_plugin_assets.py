@@ -15,6 +15,11 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORMS = ("claude", "codex")
+SKILL_REFERENCE_NAMES = (
+    "implementation-branches.md",
+    "expert-selection.md",
+    "qa-and-integration.md",
+)
 AGENT_NAMES = (
     "implementer",
     "senior-implementer",
@@ -325,6 +330,35 @@ def load_agents(root: Path, errors: list[Diagnostic]) -> list[AgentSource]:
     return agents
 
 
+def load_skill_references(
+    root: Path,
+    errors: list[Diagnostic],
+) -> dict[str, tuple[Path, str]]:
+    """Load the fixed set of reference Markdown files for the delegated workflow."""
+    skill_directory = root / "shared/skill/delegate-implementation"
+    if skill_directory.is_dir():
+        for path in sorted(skill_directory.glob("*.md")):
+            if path.name != "SKILL.md":
+                errors.append(Diagnostic(path, "unknown shared skill Markdown file"))
+
+    directory = skill_directory / "references"
+    if directory.is_dir():
+        expected = set(SKILL_REFERENCE_NAMES)
+        for path in sorted(directory.glob("*.md")):
+            if path.name not in expected:
+                errors.append(
+                    Diagnostic(path, "unknown shared skill reference Markdown file")
+                )
+
+    references: dict[str, tuple[Path, str]] = {}
+    for name in SKILL_REFERENCE_NAMES:
+        path = directory / name
+        content = read_source(path, errors)
+        if content is not None:
+            references[name] = (path, content)
+    return references
+
+
 def process_markers(
     path: Path,
     content: str,
@@ -431,6 +465,21 @@ def render_skill(
     return ensure_text(frontmatter + MARKDOWN_WARNING + "\n" + body)
 
 
+def render_skill_reference(
+    path: Path,
+    platform: str,
+    content: str,
+    errors: list[Diagnostic],
+) -> str | None:
+    """Validate one rendered reference body and add the generated warning."""
+    if not content.strip():
+        errors.append(
+            Diagnostic(path, f"{platform} skill reference Markdown body must not be empty")
+        )
+        return None
+    return ensure_text(f"{MARKDOWN_WARNING}\n\n{normalize_body(content)}")
+
+
 def yaml_scalar(value: str) -> str:
     """Encode a metadata string as a YAML-compatible JSON scalar."""
     return json.dumps(value, ensure_ascii=False)
@@ -501,13 +550,18 @@ def build_outputs(root: Path) -> tuple[dict[Path, str], list[Diagnostic]]:
     terms = load_terms(root, errors)
     agents = load_agents(root, errors)
 
-    skill_path = root / "shared/skill/delegate-implementation.md"
+    skill_path = root / "shared/skill/delegate-implementation/SKILL.md"
     skill_source = read_source(skill_path, errors)
+    skill_references = load_skill_references(root, errors)
     skill_rendered: dict[str, str] = {}
+    reference_rendered: dict[str, dict[str, str]] = {}
     used_terms: set[str] = set()
     if skill_source is not None:
         validate_placeholders(skill_path, skill_source, 1, terms, used_terms, errors)
         skill_rendered = process_markers(skill_path, skill_source, 1, errors)
+    for name, (path, content) in skill_references.items():
+        validate_placeholders(path, content, 1, terms, used_terms, errors)
+        reference_rendered[name] = process_markers(path, content, 1, errors)
 
     rendered_agent_bodies: dict[str, dict[str, str]] = {}
     for agent in agents:
@@ -547,6 +601,24 @@ def build_outputs(root: Path) -> tuple[dict[Path, str], list[Diagnostic]]:
             outputs[
                 root / f"plugins/{platform}/skills/delegate-implementation/SKILL.md"
             ] = rendered
+        for name in SKILL_REFERENCE_NAMES:
+            path, _ = skill_references[name]
+            replaced_reference = replace_terms(
+                reference_rendered[name][platform],
+                platform,
+                terms,
+            )
+            rendered_reference = render_skill_reference(
+                path,
+                platform,
+                replaced_reference,
+                errors,
+            )
+            if rendered_reference is not None:
+                outputs[
+                    root
+                    / f"plugins/{platform}/skills/delegate-implementation/references/{name}"
+                ] = rendered_reference
 
     for agent in agents:
         bodies = rendered_agent_bodies[agent.name]

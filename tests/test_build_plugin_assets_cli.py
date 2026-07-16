@@ -10,11 +10,15 @@ import unittest
 
 from build_plugin_assets_test_support import (
     AGENT_NAMES,
+    GENERATED_SKILL_REFERENCE_PATHS,
     GENERATED_MARKDOWN_WARNING,
     GENERATED_TOML_WARNING,
     IsolatedRepositorySupport,
     REFACTORER_NAMES,
     REVIEWER_NAMES,
+    SHARED_SKILL_PATH,
+    SHARED_SKILL_REFERENCE_PATHS,
+    SKILL_REFERENCE_NAMES,
 )
 
 
@@ -22,7 +26,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
     """Verify the generator only through its documented command-line interface."""
 
     def test_build_generates_all_assets_and_syncs_versions(self) -> None:
-        """Generate two skills, fourteen agents, and three synchronized versions."""
+        """Generate skill packages, eighteen agent assets, and synchronized versions."""
         with self._temporary_repository() as root:
             result = self._run(root)
 
@@ -67,10 +71,48 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
             self.assertNotIn("<!-- claude-only", claude + codex)
             self.assertNotIn("<!-- codex-only", claude + codex)
 
+    def test_build_generates_platform_specific_skill_references(self) -> None:
+        """Render every canonical reference with the same marker and term rules."""
+        with self._temporary_repository() as root:
+            result = self._run(root)
+
+            self.assertEqual(0, result.returncode, result)
+            self.assertEqual("", result.stderr)
+            for name in SKILL_REFERENCE_NAMES:
+                claude = (
+                    root / GENERATED_SKILL_REFERENCE_PATHS["claude"][name]
+                ).read_text(encoding="utf-8")
+                codex = (
+                    root / GENERATED_SKILL_REFERENCE_PATHS["codex"][name]
+                ).read_text(encoding="utf-8")
+
+                self.assertTrue(
+                    claude.startswith(f"{GENERATED_MARKDOWN_WARNING}\n\n")
+                )
+                self.assertTrue(
+                    codex.startswith(f"{GENERATED_MARKDOWN_WARNING}\n\n")
+                )
+                self.assertIn(
+                    "Parent Claude agent reference uses SendMessage.",
+                    claude,
+                )
+                self.assertIn(f"Claude reference only: {name}.", claude)
+                self.assertNotIn("Codex reference only:", claude)
+                self.assertIn(
+                    "Parent Codex agent reference uses followup_task.",
+                    codex,
+                )
+                self.assertIn(f"Codex reference only: {name}.", codex)
+                self.assertNotIn("Claude reference only:", codex)
+                self.assertNotIn("<!-- claude-only", claude + codex)
+                self.assertNotIn("<!-- codex-only", claude + codex)
+                self.assertTrue(claude.endswith("\n"))
+                self.assertTrue(codex.endswith("\n"))
+
     def test_build_accepts_whitespace_around_marker_lines(self) -> None:
         """Treat a marker as valid after stripping leading and trailing whitespace."""
         with self._temporary_repository() as root:
-            source = root / "shared/skill/delegate-implementation.md"
+            source = root / SHARED_SKILL_PATH
             content = source.read_text(encoding="utf-8")
             content = content.replace("<!-- claude-only", "  <!-- claude-only")
             content = content.replace("<!-- codex-only", "\t<!-- codex-only")
@@ -106,7 +148,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
         }
         for label, invalid in invalid_sources.items():
             with self.subTest(label=label), self._temporary_repository() as root:
-                source = root / "shared/skill/delegate-implementation.md"
+                source = root / SHARED_SKILL_PATH
                 source.write_text(
                     source.read_text(encoding="utf-8").replace(
                         "# Delegation\n",
@@ -120,20 +162,20 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
 
                 stderr = self._assert_validation_error(
                     root,
-                    ("shared/skill/delegate-implementation.md",),
+                    (SHARED_SKILL_PATH.as_posix(),),
                     before,
                 )
 
                 self.assertRegex(
                     stderr,
-                    r"shared/skill/delegate-implementation\.md:\d+",
+                    rf"{SHARED_SKILL_PATH.as_posix()}:\d+",
                 )
                 self.assertIn("marker", stderr.lower())
 
     def test_build_preserves_unrelated_html_comments(self) -> None:
         """Keep ordinary HTML comments that are not platform marker syntax."""
         with self._temporary_repository() as root:
-            source = root / "shared/skill/delegate-implementation.md"
+            source = root / SHARED_SKILL_PATH
             comment = "<!-- ordinary documentation note -->"
             source.write_text(
                 source.read_text(encoding="utf-8").replace(
@@ -205,7 +247,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
                     self.subTest(platform=platform, problem=problem),
                     self._temporary_repository() as root,
                 ):
-                    source = root / "shared/skill/delegate-implementation.md"
+                    source = root / SHARED_SKILL_PATH
                     source.write_text(
                         rendered_validation_source(platform, problem),
                         encoding="utf-8",
@@ -215,7 +257,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
 
                     stderr = self._assert_validation_error(
                         root,
-                        ("shared/skill/delegate-implementation.md",),
+                        (SHARED_SKILL_PATH.as_posix(),),
                         before,
                     )
 
@@ -458,7 +500,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
         """Reject invalid term definitions, names, usage, and unresolved placeholders."""
         def undefined_placeholder(root: Path) -> None:
             """Replace one known skill placeholder with an undefined name."""
-            source = root / "shared/skill/delegate-implementation.md"
+            source = root / SHARED_SKILL_PATH
             source.write_text(
                 source.read_text(encoding="utf-8").replace(
                     "{{parent_name}} uses", "{{missing_term}} uses", 1
@@ -552,12 +594,13 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
                 ),
             )
 
-    def test_build_requires_fixed_sources_and_rejects_unknown_agent_markdown(self) -> None:
-        """Require every canonical input and reject unknown shared agent Markdown."""
+    def test_build_requires_fixed_sources_and_rejects_unknown_shared_markdown(self) -> None:
+        """Require every canonical input and reject unknown managed Markdown."""
         required_sources = (
             "shared/VERSION",
             "shared/terms.toml",
-            "shared/skill/delegate-implementation.md",
+            SHARED_SKILL_PATH.as_posix(),
+            *(path.as_posix() for path in SHARED_SKILL_REFERENCE_PATHS.values()),
             *(f"shared/agents/{name}.md" for name in AGENT_NAMES),
         )
         for missing in required_sources:
@@ -574,6 +617,66 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
                 ("shared/agents/unknown-agent.md",),
                 before,
             )
+
+        unknown_skill_paths = (
+            SHARED_SKILL_PATH.parent / "notes.md",
+            SHARED_SKILL_PATH.parent / "references" / "unknown-reference.md",
+        )
+        for unknown in unknown_skill_paths:
+            with self.subTest(unknown=unknown), self._temporary_repository() as root:
+                self._write(root, unknown.as_posix(), "# Unknown reference\n")
+                before = self._snapshot(self._generated_paths(root))
+                self._assert_validation_error(
+                    root,
+                    (unknown.as_posix(),),
+                    before,
+                )
+
+    def test_build_rejects_invalid_skill_references_atomically(self) -> None:
+        """Reject invalid or platform-empty references without partial updates."""
+        mutations = {
+            "invalid marker": (
+                lambda text: text + "<!-- claude-only:start -->\nunclosed\n",
+                "marker",
+            ),
+            "undefined placeholder": (
+                lambda text: text.replace(
+                    "{{parent_name}} reference",
+                    "{{missing_term}} reference",
+                    1,
+                ),
+                "undefined placeholder",
+            ),
+            "platform-empty body": (
+                lambda text: (
+                    "<!-- codex-only:start -->\n"
+                    "# Codex only\n"
+                    "<!-- codex-only:end -->\n"
+                ),
+                "claude",
+            ),
+        }
+        reference_path = SHARED_SKILL_REFERENCE_PATHS[
+            "implementation-branches.md"
+        ]
+
+        for label, (mutate, expected_message) in mutations.items():
+            with self.subTest(label=label), self._temporary_repository() as root:
+                source = root / reference_path
+                source.write_text(
+                    mutate(source.read_text(encoding="utf-8")),
+                    encoding="utf-8",
+                    newline="",
+                )
+                before = self._snapshot(self._generated_paths(root))
+
+                stderr = self._assert_validation_error(
+                    root,
+                    (reference_path.as_posix(),),
+                    before,
+                )
+
+                self.assertIn(expected_message, stderr.lower())
 
     def test_build_rejects_invalid_bundle_versions(self) -> None:
         """Accept only three-part decimal versions without leading zeroes."""
@@ -725,9 +828,21 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
             self.assertEqual(0, build.returncode, build)
 
             stale_skill = root / "plugins/claude/skills/delegate-implementation/SKILL.md"
+            stale_reference = (
+                root
+                / GENERATED_SKILL_REFERENCE_PATHS["claude"][
+                    "implementation-branches.md"
+                ]
+            )
+            missing_reference = (
+                root
+                / GENERATED_SKILL_REFERENCE_PATHS["codex"]["expert-selection.md"]
+            )
             missing_agent = root / "plugins/codex/install/agents/implementer.toml"
             stale_manifest = root / "plugins/codex/.codex-plugin/plugin.json"
             stale_skill.write_text("stale\n", encoding="utf-8", newline="")
+            stale_reference.write_text("stale\n", encoding="utf-8", newline="")
+            missing_reference.unlink()
             missing_agent.unlink()
             manifest = json.loads(stale_manifest.read_text(encoding="utf-8"))
             manifest["version"] = "9.9.9"
@@ -743,6 +858,14 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
             self.assertEqual("", result.stdout)
             for relative_path in (
                 "plugins/claude/skills/delegate-implementation/SKILL.md",
+                (
+                    "plugins/claude/skills/delegate-implementation/references/"
+                    "implementation-branches.md"
+                ),
+                (
+                    "plugins/codex/skills/delegate-implementation/references/"
+                    "expert-selection.md"
+                ),
                 "plugins/codex/install/agents/implementer.toml",
                 "plugins/codex/.codex-plugin/plugin.json",
             ):
@@ -783,7 +906,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
     def test_independent_input_errors_are_aggregated_without_partial_updates(self) -> None:
         """Report independent source errors together before changing any output."""
         with self._temporary_repository() as root:
-            skill = root / "shared/skill/delegate-implementation.md"
+            skill = root / SHARED_SKILL_PATH
             skill.write_text(
                 "<!-- claude-only:start -->\nunclosed\n",
                 encoding="utf-8",
@@ -802,7 +925,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
             self._assert_validation_error(
                 root,
                 (
-                    "shared/skill/delegate-implementation.md",
+                    SHARED_SKILL_PATH.as_posix(),
                     "shared/agents/implementer.md",
                 ),
                 before,
@@ -864,6 +987,10 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
                 root / "docs/plan.md",
                 root / "plugins/codex/install/install-agents.sh",
                 root / "plugins/codex/skills/delegate-implementation/agents/openai.yaml",
+                (
+                    root
+                    / "plugins/codex/skills/delegate-implementation/references/local.md"
+                ),
                 root / "plugins/claude/agents/local-agent.md",
                 root / "plugins/codex/install/agents/local-agent.toml",
             ]

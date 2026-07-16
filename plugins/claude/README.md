@@ -6,6 +6,8 @@
 
 - `skills/delegate-implementation/SKILL.md`
   - タスク分割、worktree 隔離、委譲、返却 diff とテストの QA、最終検証を定義します。
+- `skills/delegate-implementation/references/*.md`
+  - 実装枝、expert 選択、QA・統合の詳細を必要な段階で参照します。
 - `agents/implementer.md`
   - 仕様が明確で範囲が閉じた通常実装を担当します。
 - `agents/senior-implementer.md`

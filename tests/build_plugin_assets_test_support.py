@@ -39,12 +39,28 @@ REFACTORER_NAMES = (
 )
 GENERATED_MARKDOWN_WARNING = "<!-- Generated from shared/. Do not edit directly. -->"
 GENERATED_TOML_WARNING = "# Generated from shared/. Do not edit directly."
-SHARED_SKILL_PATH = Path("shared/skill/delegate-implementation.md")
+SKILL_REFERENCE_NAMES = (
+    "implementation-branches.md",
+    "expert-selection.md",
+    "qa-and-integration.md",
+)
+SHARED_SKILL_ROOT = Path("shared/skill/delegate-implementation")
+SHARED_SKILL_PATH = SHARED_SKILL_ROOT / "SKILL.md"
+SHARED_SKILL_REFERENCE_PATHS = {
+    name: SHARED_SKILL_ROOT / "references" / name
+    for name in SKILL_REFERENCE_NAMES
+}
 GENERATED_SKILL_PATHS = {
     "claude": Path("plugins/claude/skills/delegate-implementation/SKILL.md"),
     "codex": Path("plugins/codex/skills/delegate-implementation/SKILL.md"),
 }
-WORKFLOW_PATHS = (SHARED_SKILL_PATH, *GENERATED_SKILL_PATHS.values())
+GENERATED_SKILL_REFERENCE_PATHS = {
+    platform: {
+        name: path.parent / "references" / name
+        for name in SKILL_REFERENCE_NAMES
+    }
+    for platform, path in GENERATED_SKILL_PATHS.items()
+}
 CODEX_PROFILE_PATH = Path("plugins/codex/install/agents")
 CLAUDE_PROFILE_PATH = Path("plugins/claude/agents")
 
@@ -60,6 +76,12 @@ class RepositorySkillTexts:
     source: str
     claude: str
     codex: str
+    source_main: str
+    claude_main: str
+    codex_main: str
+    source_references: dict[str, str]
+    claude_references: dict[str, str]
+    codex_references: dict[str, str]
 
     def all_texts(self) -> tuple[str, str, str]:
         return (self.source, self.claude, self.codex)
@@ -94,10 +116,37 @@ class RepositoryContractSupport:
         return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
 
     def _repository_skill_texts(self) -> RepositorySkillTexts:
+        source_main = self._repository_text(SHARED_SKILL_PATH)
+        claude_main = self._repository_text(GENERATED_SKILL_PATHS["claude"])
+        codex_main = self._repository_text(GENERATED_SKILL_PATHS["codex"])
+        source_references = {
+            name: self._repository_text(path)
+            for name, path in SHARED_SKILL_REFERENCE_PATHS.items()
+        }
+        claude_references = {
+            name: self._repository_text(path)
+            for name, path in GENERATED_SKILL_REFERENCE_PATHS["claude"].items()
+        }
+        codex_references = {
+            name: self._repository_text(path)
+            for name, path in GENERATED_SKILL_REFERENCE_PATHS["codex"].items()
+        }
+
+        def combine(main: str, references: dict[str, str]) -> str:
+            return main + "\n" + "\n".join(
+                references[name] for name in SKILL_REFERENCE_NAMES
+            )
+
         return RepositorySkillTexts(
-            source=self._repository_text(SHARED_SKILL_PATH),
-            claude=self._repository_text(GENERATED_SKILL_PATHS["claude"]),
-            codex=self._repository_text(GENERATED_SKILL_PATHS["codex"]),
+            source=combine(source_main, source_references),
+            claude=combine(claude_main, claude_references),
+            codex=combine(codex_main, codex_references),
+            source_main=source_main,
+            claude_main=claude_main,
+            codex_main=codex_main,
+            source_references=source_references,
+            claude_references=claude_references,
+            codex_references=codex_references,
         )
 
     def _agent_source_metadata(self, name: str) -> dict[str, Any]:
@@ -110,7 +159,12 @@ class RepositoryContractSupport:
         )
 
     def _repository_workflow_texts(self) -> dict[Path, str]:
-        return {path: self._repository_text(path) for path in WORKFLOW_PATHS}
+        skills = self._repository_skill_texts()
+        return {
+            SHARED_SKILL_PATH: skills.source,
+            GENERATED_SKILL_PATHS["claude"]: skills.claude,
+            GENERATED_SKILL_PATHS["codex"]: skills.codex,
+        }
 
 
 class IsolatedRepositorySupport:
@@ -193,6 +247,21 @@ class IsolatedRepositorySupport:
             "<!-- codex-only:end -->\n"
         )
 
+    def _skill_reference_source(self, name: str) -> str:
+        """Return one generated skill reference fixture."""
+        return (
+            f"# {name}\n"
+            "\n"
+            "{{parent_name}} reference uses {{followup_tool}}.\n"
+            "\n"
+            "<!-- claude-only:start -->\n"
+            f"Claude reference only: {name}.\n"
+            "<!-- claude-only:end -->\n"
+            "<!-- codex-only:start -->\n"
+            f"Codex reference only: {name}.\n"
+            "<!-- codex-only:end -->\n"
+        )
+
     def _make_repository(self, root: Path) -> None:
         """Create a complete minimal repository fixture with stale generated files."""
         self._write(root, "shared/VERSION", "1.2.3\n")
@@ -209,9 +278,15 @@ class IsolatedRepositorySupport:
         )
         self._write(
             root,
-            "shared/skill/delegate-implementation.md",
+            SHARED_SKILL_PATH.as_posix(),
             self._skill_source(),
         )
+        for name, path in SHARED_SKILL_REFERENCE_PATHS.items():
+            self._write(
+                root,
+                path.as_posix(),
+                self._skill_reference_source(name),
+            )
         for name in AGENT_NAMES:
             sandbox_mode = "read-only" if name in REVIEWER_NAMES else None
             self._write(
@@ -251,6 +326,9 @@ class IsolatedRepositorySupport:
             "plugins/codex/skills/delegate-implementation/SKILL.md",
             "stale codex skill\n",
         )
+        for platform_paths in GENERATED_SKILL_REFERENCE_PATHS.values():
+            for path in platform_paths.values():
+                self._write(root, path.as_posix(), "stale skill reference\n")
         for name in AGENT_NAMES:
             self._write(root, f"plugins/claude/agents/{name}.md", "stale claude agent\n")
             self._write(
@@ -270,6 +348,11 @@ class IsolatedRepositorySupport:
             root,
             "plugins/codex/skills/delegate-implementation/agents/openai.yaml",
             "interface: outside\n",
+        )
+        self._write(
+            root,
+            "plugins/codex/skills/delegate-implementation/references/local.md",
+            "outside local reference\n",
         )
         self._write(
             root,
@@ -312,6 +395,8 @@ class IsolatedRepositorySupport:
             root / "plugins/codex/.codex-plugin/plugin.json",
             root / "plugins/codex/install/VERSION",
         ]
+        for platform_paths in GENERATED_SKILL_REFERENCE_PATHS.values():
+            paths.extend(root / path for path in platform_paths.values())
         for name in AGENT_NAMES:
             paths.extend(
                 (
