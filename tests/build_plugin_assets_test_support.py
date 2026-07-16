@@ -1,4 +1,4 @@
-"""Shared data and helpers for plugin asset generator tests."""
+"""Test fixtures shared by the CLI and repository contract suites."""
 
 from __future__ import annotations
 
