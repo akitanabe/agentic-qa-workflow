@@ -38,6 +38,26 @@
 - [Claude Code plugin](plugins/claude/README.md)
 - [Codex plugin](plugins/codex/README.md)
 
+## workflow の利用例
+
+次の例は、変更名ではなく、具体的な作業内容とリスクから必要な QA を判断するための代表例です。
+
+### direct: typo・文書・小さく閉じた設定修正
+
+委譲要求がなく、仕様が明確で影響範囲が閉じている typo、文書、小さな設定修正は、委譲 mode ではなく skill 外の `direct` route で親が直接処理します。不要な委譲を避けつつ、親が変更に必要な検証、diff review、最終報告を行います。
+
+### standard: 小機能・validation rule・振る舞い変更
+
+通常の小機能、validation rule の追加、test を伴う振る舞い変更を明示的に委譲する場合は `standard` を使います。親は AC と境界値・異常系を具体化し、専用 worktree で実装させます。Implementer は Red 証跡と AC → test → 期待値の根拠の対応を返し、親は diff と test を確認して、統合後の green と最終判断まで担います。
+
+### strict: 失敗コストが高い変更
+
+本番 data migration、file import / export、認証、破壊的操作のような変更でも、名前だけで一律に決めません。失敗コスト、復旧の難しさ、部分失敗時の整合性、認可の誤りという具体的なリスクが高い場合に `strict` を使います。同じ実装枝、Implementer context、worktree でテスト計画 → Red → Green → Refactor を段階 gate に分け、親が各段階と統合後の green を確認します。
+
+### 専門 reviewer を選ぶとき
+
+責務境界、test 品質、security / side-effect の専門 reviewer は、`strict` であることだけを理由に一律で選びません。返却 diff に対応する具体的なリスクがある場合、またはユーザーが明示した場合だけ選び、reviewer に最終判断を委ねません。記述原則を最終整理する `writing-principles-refactorer` は、これらの専門 reviewer とは別の役割です。
+
 ## 編集と生成
 
 共通原稿を編集したら、配布物を再生成します。
