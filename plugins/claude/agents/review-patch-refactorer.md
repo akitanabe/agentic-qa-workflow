@@ -2,7 +2,7 @@
 name: "review-patch-refactorer"
 description: "専門reviewerの具体的な指摘に基づき、Acceptance Criteriaと既存の振る舞いを維持したまま、指定範囲だけを最小修正する専用refactorer。"
 model: sonnet
-effort: low
+effort: medium
 ---
 <!-- Generated from shared/. Do not edit directly. -->
 

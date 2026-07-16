@@ -8,6 +8,8 @@ plugin_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])
 required_agents=(
   implementer
   senior-implementer
+  expert-implementer
+  expert-selection-reviewer
   responsibility-boundary-reviewer
   test-quality-reviewer
   writing-principles-refactorer

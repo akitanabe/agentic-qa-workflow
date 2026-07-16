@@ -259,16 +259,20 @@ worker には次を返させる。
 <!-- claude-only:start -->
 ## 難度に応じた implementer（サブエージェント）選択
 
-委譲先は難度で2つの implementer を使い分ける。`Agent` ツールの `subagent_type` に指定して起動する。
+通常は2つの implementer を難度で使い分ける。`expert-implementer` は難度の最上位ラベルではなく、
+親相当の推論能力が必要な例外的な枝に限る。`Agent` ツールの `subagent_type` に指定して起動する。
 難度は「行数」でなく**判断の難しさ**で測る — 設計の自由度・影響範囲・ドメインの罠が多いほど上。
 
 | subagent_type | 充てる難度 |
 |---------------|-----------|
+| **`expert-implementer`** | 親相当の推論能力が必要で、senior では不足する具体的根拠があり、事前審査を通過した独立実装枝。 |
 | **`senior-implementer`** | 設計判断を伴う／複数モジュールに波及する／非自明なアルゴリズム・並行性／誤実装の代償が大きい枝。 |
 | **`implementer`** | 仕様が明確で範囲が限定された通常の実装・テスト追加（大半の枝）。 |
 
 - **迷ったら `senior-implementer`。** 取りこぼしを親が手直しするコストの方が高くつく。難所と雑務が混在
   するなら枝を割る（難所 `senior-implementer`／雑務 `implementer`）。
+- **expert と迷う場合も `senior-implementer`。** expert は `expert-selection-reviewer` の
+  `APPROVE_EXPERT` がある場合だけ起動する。
 - **既存テストに触れる枝・共有基盤に関わる枝は `implementer` に入れない** — 波及範囲が読みにくく、
   壊れたときの代償が局所に収まらない。
 - **親が列挙する境界値・異常系はどちらに渡すかで変えない。** 同じ密度で書く。
@@ -278,9 +282,10 @@ worker には次を返させる。
 ## Worker 選択
 
 worker を選ぶ前に Codex の custom agent リストを確認する。リストに `implementer`、`senior-implementer`、
-`responsibility-boundary-reviewer`、`test-quality-reviewer`、`writing-principles-refactorer`、
-`security-side-effect-reviewer`、`review-patch-refactorer` がすべて表示されるなら、この確認だけで次へ進む。
-余分な filesystem 確認やコピーはしない。
+`expert-implementer`、`expert-selection-reviewer`、`responsibility-boundary-reviewer`、
+`test-quality-reviewer`、`writing-principles-refactorer`、`security-side-effect-reviewer`、
+`review-patch-refactorer` がすべて表示されるなら、この確認だけで次へ進む。余分な filesystem 確認やコピーは
+しない。
 
 Codex の custom agent 定義は plugin 有効化だけでは自動登録されない。不足がある場合は
 `$install-custom-agents` を使い、対象 scope と既存版を確認してインストールする。既存ファイルの更新が必要でも、
@@ -290,12 +295,16 @@ session の再起動を依頼して処理を打ち切る。再起動後に改め
 委譲先は難度で使い分ける。難度は「行数」でなく**判断の難しさ**で測る — 設計の自由度・影響範囲・
 ドメインの罠が多いほど上。custom agents が登録済みなら次の agent 名を優先して使う。登録されていない、
 または現在の Codex 環境で agent 名を指定できない場合は、plugin 固有の agent 名に依存せず、prompt 内で
-同等の role profile を使い分ける。
+同等の role profile を使い分ける。ただし `expert-implementer` と `expert-selection-reviewer` は例外とし、
+登録または agent 名の指定ができない場合は role profile へ代替せず、expert の事前審査ゲートに従って
+現在の委譲フローを終了する。
 
 | custom agent / role profile | 使う場面 |
 | --- | --- |
 | `implementer` / 通常 implementer | 仕様が明確で範囲が閉じた通常の実装・テスト追加（大半の枝）。 |
 | `senior-implementer` / senior implementer | 設計判断を伴う／複数 module に波及する／非自明な algorithm・concurrency／誤実装の代償が大きい枝。 |
+| `expert-implementer` / expert implementer | 親相当の推論能力が必要で、senior では不足する具体的根拠があり、事前審査を通過した独立実装枝。 |
+| `expert-selection-reviewer` / expert selection reviewer | expert の高い実行コストを正当化する選択理由が揃っているか、起動前に審査する。 |
 | `responsibility-boundary-reviewer` / responsibility-boundary reviewer | 実装済み diff の責務混在・境界違反・副作用分散を確認する。ファイルは編集しない。 |
 | `test-quality-reviewer` / test-quality reviewer | テストの仕様対応、振る舞い、網羅性を確認する。ファイルは編集しない。 |
 | `writing-principles-refactorer` / writing-principles refactorer | `How / What / Why / Why Not` の配置、命名、説明を確認し、振る舞いを変えない局所修正を行う。 |
@@ -304,6 +313,8 @@ session の再起動を依頼して処理を打ち切る。再起動後に改め
 
 - **迷ったら senior 側。** 取りこぼしを親が手直しするコストの方が高くつく。難所と雑務が混在するなら
   枝を割る（難所は senior implementer／雑務は通常 implementer）。
+- **expert と迷う場合も senior 側。** expert は `expert-selection-reviewer` の `APPROVE_EXPERT` がある場合だけ
+  起動する。
 - **既存テストに触れる枝・共有基盤に関わる枝は通常 implementer に入れない** — 波及範囲が読みにくく、
   壊れたときの代償が局所に収まらない。
 - **親が列挙する境界値・異常系はどちらに渡すかで変えない。** 同じ密度で書く。
@@ -313,6 +324,57 @@ session の再起動を依頼して処理を打ち切る。再起動後に改め
 委譲する。枝の統合完了後はその conversation を終了し、別の実装枝には再利用しない。
 
 <!-- codex-only:end -->
+## expert の事前審査ゲート
+
+`expert-implementer` は高コストな例外的 worker である。公開 API、データ移行、セキュリティ、並行性、
+変更行数、重要度などのタスク属性だけでは expert を選択しない。これらは通常 `senior-implementer` の
+対象であり、親相当の能力が必要で senior では不足する具体的根拠が追加で揃う場合だけ事前審査へ進める。
+
+親が expert 候補を特定した場合は、起動前に次の Data を `expert-selection-reviewer` へ渡す。
+
+- タスクと受け入れ条件
+- 確定済みのスコープ
+- 親相当の能力が必要な判断
+- senior では不足すると判断した具体的根拠
+- 独立 context へ隔離する理由
+- 副作用と責務境界に関する制約
+- expert を使わない場合に予想される再設計・再実装
+
+`expert-selection-reviewer` は選択理由の十分性だけを審査し、仕様補完、実装設計、タスク分割、worker 起動、
+最終判断を行わない。判定は次のいずれかに固定する。
+
+- `APPROVE_EXPERT`
+- `REJECT_USE_SENIOR`
+- `REJECT_USE_IMPLEMENTER`
+- `REJECT_REPLAN`
+
+`APPROVE_EXPERT` の場合だけ expert を起動する。reject の場合は、その委譲フロー内で expert を起動せず、
+提案された worker へ自動 fallback しない。親がタスク分割、AC、worker 選択、直接実装を含むプランを
+練り直す。親が判定に同意できない場合も、その場で reviewer を無視して expert を起動しない。選択理由または
+プランを変更し、新しい審査として再実行する。
+
+expert の委譲プロンプトには、次の選択理由と reviewer の承認結果を含める。
+
+```text
+Expert 選択理由:
+- 親相当の能力が必要な判断:
+- senior では不足すると判断した根拠:
+- 独立 context へ隔離する理由:
+
+Expert 選択審査:
+- 判定: APPROVE_EXPERT
+- 承認理由:
+```
+
+外部 I/O、共有可変状態、現在時刻、乱数などの副作用が存在すること自体は expert の選択理由にしない。
+副作用の局所化、整合性、部分失敗、再試行、冪等性、トランザクション境界が複数の責務境界にまたがり、
+親相当の判断が必要であることまで具体化する。
+
+Fable、`gpt-5.6-sol`、指定 effort、custom agent、起動機構、または `expert-selection-reviewer` が利用できず、
+事前審査または expert の起動を完了できない場合は、現在の委譲フローを終了する。利用不能の内容と
+未着手・未完了範囲を報告し、senior への自動 fallback や親による直接実装を続行しない。タスク分割、
+worker 選択、直接実装を含むプランの練り直しは、改めて開始する。
+
 ## 委譲プロンプトの組み立て
 
 新規 Implementer は親や前の枝の文脈を持たない前提にする。親は指示を自己完結させ、次を Data として

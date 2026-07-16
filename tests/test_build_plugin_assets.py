@@ -18,6 +18,8 @@ BUILDER_SOURCE = REPOSITORY_ROOT / "scripts" / "build_plugin_assets.py"
 AGENT_NAMES = (
     "implementer",
     "senior-implementer",
+    "expert-implementer",
+    "expert-selection-reviewer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
     "writing-principles-refactorer",
@@ -25,6 +27,7 @@ AGENT_NAMES = (
     "review-patch-refactorer",
 )
 REVIEWER_NAMES = (
+    "expert-selection-reviewer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
     "security-side-effect-reviewer",
@@ -157,9 +160,11 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         """Assign each Codex agent the model and effort suited to its role."""
         expected_profiles = {
             "implementer": ("gpt-5.6-luna", "xhigh"),
-            "senior-implementer": ("gpt-5.6-terra", "high"),
-            "responsibility-boundary-reviewer": ("gpt-5.6-terra", "xhigh"),
-            "test-quality-reviewer": ("gpt-5.6-terra", "high"),
+            "senior-implementer": ("gpt-5.6-sol", "medium"),
+            "expert-implementer": ("gpt-5.6-sol", "xhigh"),
+            "expert-selection-reviewer": ("gpt-5.6-sol", "medium"),
+            "responsibility-boundary-reviewer": ("gpt-5.6-sol", "medium"),
+            "test-quality-reviewer": ("gpt-5.6-sol", "medium"),
             "writing-principles-refactorer": ("gpt-5.6-luna", "xhigh"),
             "security-side-effect-reviewer": ("gpt-5.6-sol", "high"),
             "review-patch-refactorer": ("gpt-5.6-luna", "high"),
@@ -197,13 +202,15 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
     ) -> None:
         """Assign each Claude agent the model and effort suited to its role."""
         expected_profiles = {
-            "implementer": ("sonnet", "medium"),
+            "implementer": ("sonnet", "high"),
             "senior-implementer": ("opus", "high"),
-            "responsibility-boundary-reviewer": ("opus", "xhigh"),
+            "expert-implementer": ("fable", "xhigh"),
+            "expert-selection-reviewer": ("opus", "high"),
+            "responsibility-boundary-reviewer": ("opus", "high"),
             "test-quality-reviewer": ("opus", "high"),
-            "writing-principles-refactorer": ("sonnet", "medium"),
+            "writing-principles-refactorer": ("sonnet", "high"),
             "security-side-effect-reviewer": ("fable", "high"),
-            "review-patch-refactorer": ("sonnet", "low"),
+            "review-patch-refactorer": ("sonnet", "medium"),
         }
         for name, (expected_model, expected_effort) in expected_profiles.items():
             with self.subTest(name=name):
@@ -219,6 +226,85 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                 self.assertEqual(expected_effort, source_metadata["claude"]["effort"])
                 self.assertIn(f"model: {expected_model}\n", artifact)
                 self.assertIn(f"effort: {expected_effort}\n", artifact)
+
+    def test_repository_workflows_gate_expert_implementation_with_selection_review(
+        self,
+    ) -> None:
+        """Use expert only after an independent review approves its concrete rationale."""
+        workflows = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+        )
+        required_contract = (
+            "`expert-selection-reviewer`",
+            "`APPROVE_EXPERT`",
+            "`REJECT_USE_SENIOR`",
+            "`REJECT_USE_IMPLEMENTER`",
+            "`REJECT_REPLAN`",
+            "親相当の能力が必要な判断",
+            "senior では不足すると判断した具体的根拠",
+            "独立 context へ隔離する理由",
+            "自動 fallback しない",
+            "プランを練り直す",
+        )
+
+        for path in workflows:
+            with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
+                workflow = path.read_text(encoding="utf-8")
+                normalized_workflow = "".join(workflow.split())
+                for instruction in required_contract:
+                    self.assertIn("".join(instruction.split()), normalized_workflow)
+
+        codex_only_rule = (
+            "登録または agent 名の指定ができない場合は role profile へ代替せず"
+        )
+        self.assertIn(codex_only_rule, workflows[0].read_text(encoding="utf-8"))
+        self.assertIn(codex_only_rule, workflows[2].read_text(encoding="utf-8"))
+        self.assertNotIn(codex_only_rule, workflows[1].read_text(encoding="utf-8"))
+
+    def test_repository_expert_agents_define_selection_and_side_effect_contracts(
+        self,
+    ) -> None:
+        """Keep expert selection costly, explicit, and bounded by observable contracts."""
+        expert = (
+            REPOSITORY_ROOT / "shared" / "agents" / "expert-implementer.md"
+        ).read_text(encoding="utf-8")
+        reviewer = (
+            REPOSITORY_ROOT / "shared" / "agents" / "expert-selection-reviewer.md"
+        ).read_text(encoding="utf-8")
+        reviewer_metadata = tomllib.loads(reviewer.split("+++", 2)[1])
+
+        for instruction in (
+            "Action → Data → Calculation → Data → Action",
+            "避けられない副作用",
+            "副作用を配置した境界",
+            "実行順序とトランザクション境界",
+            "重複実行、再試行、部分失敗時の振る舞い",
+            "これ以上副作用を狭められない理由",
+        ):
+            self.assertIn(instruction, expert)
+
+        for verdict in (
+            "APPROVE_EXPERT",
+            "REJECT_USE_SENIOR",
+            "REJECT_USE_IMPLEMENTER",
+            "REJECT_REPLAN",
+        ):
+            self.assertIn(verdict, reviewer)
+        self.assertEqual("read-only", reviewer_metadata["codex"]["sandbox_mode"])
+        self.assertIn("ファイル編集", reviewer)
+        self.assertIn("最終判断", reviewer)
 
     def test_repository_specialized_reviewers_define_their_review_contracts(self) -> None:
         """Expose each review focus, common verdicts, and a read-only Codex role."""

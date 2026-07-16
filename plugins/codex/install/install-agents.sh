@@ -71,6 +71,8 @@ fi
 required_agents=(
   implementer.toml
   senior-implementer.toml
+  expert-implementer.toml
+  expert-selection-reviewer.toml
   responsibility-boundary-reviewer.toml
   test-quality-reviewer.toml
   writing-principles-refactorer.toml
@@ -149,6 +151,8 @@ Installed agentic-qa-workflow custom agents version $bundled_version to:
 Installed agents:
   implementer
   senior-implementer
+  expert-implementer
+  expert-selection-reviewer
   responsibility-boundary-reviewer
   test-quality-reviewer
   writing-principles-refactorer

@@ -2,9 +2,9 @@
 name = "implementer"
 
 [claude]
-description = "agentic-qa-workflow ワークフロー専用の通常実装者。仕様が明確で範囲が閉じた通常の実装・テスト追加（大半の枝）を、Sonnet + effort medium で実装する。親（マネージャー）が subagent_type で明示的に選ぶ前提で使う。自動委譲用ではない（明示指示がない限り起動しない）。設計判断を伴う・波及が大きい・非自明なアルゴリズム/並行性を含む高難度の枝は senior-implementer を使う。"
+description = "agentic-qa-workflow ワークフロー専用の通常実装者。仕様が明確で範囲が閉じた通常の実装・テスト追加（大半の枝）を、Sonnet + effort high で実装する。親（マネージャー）が subagent_type で明示的に選ぶ前提で使う。自動委譲用ではない（明示指示がない限り起動しない）。設計判断を伴う・波及が大きい・非自明なアルゴリズム/並行性を含む高難度の枝は senior-implementer を使う。"
 model = "sonnet"
-effort = "medium"
+effort = "high"
 
 [codex]
 description = "agentic-qa-workflow workflow implementer for clear, bounded implementation or test branches. Use only when the parent agent explicitly delegates a normal implementation slice."

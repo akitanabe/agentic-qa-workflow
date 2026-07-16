@@ -8,8 +8,8 @@ effort = "high"
 
 [codex]
 description = "Review changed tests for acceptance-criteria coverage, observable behavior, boundary and error cases, and meaningful failure protection. Report findings only and do not edit files."
-model = "gpt-5.6-terra"
-model_reasoning_effort = "high"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 nickname_candidates = ["Test Quality Reviewer", "Test Reviewer", "Coverage Reviewer"]
 +++

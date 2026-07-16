@@ -4,7 +4,7 @@ name = "review-patch-refactorer"
 [claude]
 description = "専門reviewerの具体的な指摘に基づき、Acceptance Criteriaと既存の振る舞いを維持したまま、指定範囲だけを最小修正する専用refactorer。"
 model = "sonnet"
-effort = "low"
+effort = "medium"
 
 [codex]
 description = "Apply the smallest behavior-preserving patch for concrete specialist-reviewer findings after acceptance criteria and functional tests are green. Do not broaden scope or reinterpret requirements."
