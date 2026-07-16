@@ -4,12 +4,12 @@ name = "responsibility-boundary-reviewer"
 [claude]
 description = "実装済み diff テキストを読み、責務混在・境界違反・副作用分散を確認する専用 reviewer。コード修正は行わず、判定と最小修正方針だけを返す。"
 model = "opus"
-effort = "xhigh"
+effort = "high"
 
 [codex]
 description = "Read an implementation diff and review responsibility boundaries, mixed concerns, and side-effect placement. This agent reports findings only and must not edit files."
-model = "gpt-5.6-terra"
-model_reasoning_effort = "xhigh"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 nickname_candidates = ["Boundary Reviewer", "Design Reviewer", "Responsibility Reviewer"]
 +++
