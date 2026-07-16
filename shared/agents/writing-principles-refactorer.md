@@ -4,7 +4,7 @@ name = "writing-principles-refactorer"
 [claude]
 description = "コード、テスト、コメント、DocBlockの How・What・Why・Why Not をlintに近い形で確認し、振る舞いを変えない局所的な記述・命名・構造の問題を直接修正する専用refactorer。コミットログは報告のみでrewriteしない。"
 model = "sonnet"
-effort = "medium"
+effort = "high"
 
 [codex]
 description = "Lint and locally refactor naming and the placement of How, What, Why, and Why Not across code, tests, comments, and DocBlocks without changing behavior. Report commit-message issues without rewriting history."

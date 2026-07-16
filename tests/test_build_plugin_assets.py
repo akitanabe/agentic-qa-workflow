@@ -160,11 +160,11 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         """Assign each Codex agent the model and effort suited to its role."""
         expected_profiles = {
             "implementer": ("gpt-5.6-luna", "xhigh"),
-            "senior-implementer": ("gpt-5.6-terra", "high"),
+            "senior-implementer": ("gpt-5.6-sol", "medium"),
             "expert-implementer": ("gpt-5.6-sol", "xhigh"),
             "expert-selection-reviewer": ("gpt-5.6-sol", "medium"),
             "responsibility-boundary-reviewer": ("gpt-5.6-terra", "xhigh"),
-            "test-quality-reviewer": ("gpt-5.6-terra", "high"),
+            "test-quality-reviewer": ("gpt-5.6-sol", "medium"),
             "writing-principles-refactorer": ("gpt-5.6-luna", "xhigh"),
             "security-side-effect-reviewer": ("gpt-5.6-sol", "high"),
             "review-patch-refactorer": ("gpt-5.6-luna", "high"),
@@ -202,15 +202,15 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
     ) -> None:
         """Assign each Claude agent the model and effort suited to its role."""
         expected_profiles = {
-            "implementer": ("sonnet", "medium"),
+            "implementer": ("sonnet", "high"),
             "senior-implementer": ("opus", "high"),
             "expert-implementer": ("fable", "xhigh"),
             "expert-selection-reviewer": ("opus", "high"),
             "responsibility-boundary-reviewer": ("opus", "xhigh"),
             "test-quality-reviewer": ("opus", "high"),
-            "writing-principles-refactorer": ("sonnet", "medium"),
+            "writing-principles-refactorer": ("sonnet", "high"),
             "security-side-effect-reviewer": ("fable", "high"),
-            "review-patch-refactorer": ("sonnet", "low"),
+            "review-patch-refactorer": ("sonnet", "medium"),
         }
         for name, (expected_model, expected_effort) in expected_profiles.items():
             with self.subTest(name=name):

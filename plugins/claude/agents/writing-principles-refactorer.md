@@ -2,7 +2,7 @@
 name: "writing-principles-refactorer"
 description: "コード、テスト、コメント、DocBlockの How・What・Why・Why Not をlintに近い形で確認し、振る舞いを変えない局所的な記述・命名・構造の問題を直接修正する専用refactorer。コミットログは報告のみでrewriteしない。"
 model: sonnet
-effort: medium
+effort: high
 ---
 <!-- Generated from shared/. Do not edit directly. -->
 
