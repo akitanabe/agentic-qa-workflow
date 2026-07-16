@@ -20,15 +20,18 @@ AGENT_NAMES = (
     "senior-implementer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
-    "writing-principles-reviewer",
+    "writing-principles-refactorer",
     "security-side-effect-reviewer",
-    "refactor-patch-agent",
+    "review-patch-refactorer",
 )
 REVIEWER_NAMES = (
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
-    "writing-principles-reviewer",
     "security-side-effect-reviewer",
+)
+REFACTORER_NAMES = (
+    "writing-principles-refactorer",
+    "review-patch-refactorer",
 )
 GENERATED_MARKDOWN_WARNING = "<!-- Generated from shared/. Do not edit directly. -->"
 GENERATED_TOML_WARNING = "# Generated from shared/. Do not edit directly."
@@ -77,9 +80,9 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "senior-implementer": ("gpt-5.6-terra", "high"),
             "responsibility-boundary-reviewer": ("gpt-5.6-terra", "xhigh"),
             "test-quality-reviewer": ("gpt-5.6-terra", "high"),
-            "writing-principles-reviewer": ("gpt-5.6-luna", "xhigh"),
+            "writing-principles-refactorer": ("gpt-5.6-luna", "xhigh"),
             "security-side-effect-reviewer": ("gpt-5.6-sol", "high"),
-            "refactor-patch-agent": ("gpt-5.6-luna", "high"),
+            "review-patch-refactorer": ("gpt-5.6-luna", "high"),
         }
         for name, (expected_model, expected_effort) in expected_profiles.items():
             with self.subTest(name=name):
@@ -118,9 +121,9 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "senior-implementer": ("opus", "high"),
             "responsibility-boundary-reviewer": ("opus", "xhigh"),
             "test-quality-reviewer": ("opus", "high"),
-            "writing-principles-reviewer": ("sonnet", "medium"),
+            "writing-principles-refactorer": ("sonnet", "medium"),
             "security-side-effect-reviewer": ("fable", "high"),
-            "refactor-patch-agent": ("sonnet", "low"),
+            "review-patch-refactorer": ("sonnet", "low"),
         }
         for name, (expected_model, expected_effort) in expected_profiles.items():
             with self.subTest(name=name):
@@ -141,7 +144,6 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         """Expose each review focus, common verdicts, and a read-only Codex role."""
         expected_focus = {
             "test-quality-reviewer": ("観測可能な振る舞い", "境界値", "異常系"),
-            "writing-principles-reviewer": ("How", "What", "Why", "Why Not"),
             "security-side-effect-reviewer": ("認証", "冪等", "path traversal"),
         }
 
@@ -157,6 +159,45 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                     self.assertIn(verdict, source)
                 for term in focus_terms:
                     self.assertIn(term, source)
+
+    def test_repository_refactorers_define_writable_narrow_contracts(self) -> None:
+        """Allow only the two refactorers to apply their explicitly bounded patches."""
+        expected_contracts = {
+            "writing-principles-refactorer": (
+                "How / What / Why / Why Not",
+                "自明または重複したコメントの削除",
+                "テストの期待値変更",
+                "既存コミットの rewrite は行いません",
+            ),
+            "review-patch-refactorer": (
+                "専門 reviewer の具体的な指摘",
+                "Acceptance Criteria",
+                "指摘されていない箇所のついで修正",
+                "追加した修正コミット SHA",
+            ),
+        }
+
+        for name, contracts in expected_contracts.items():
+            with self.subTest(name=name):
+                source = (
+                    REPOSITORY_ROOT / "shared" / "agents" / f"{name}.md"
+                ).read_text(encoding="utf-8")
+                metadata = tomllib.loads(source.split("+++", 2)[1])
+                artifact = tomllib.loads(
+                    (
+                        REPOSITORY_ROOT
+                        / "plugins"
+                        / "codex"
+                        / "install"
+                        / "agents"
+                        / f"{name}.toml"
+                    ).read_text(encoding="utf-8")
+                )
+
+                self.assertNotIn("sandbox_mode", metadata["codex"])
+                self.assertNotIn("sandbox_mode", artifact)
+                for contract in contracts:
+                    self.assertIn(contract, source)
 
     def test_security_reviewer_is_defensive_and_detection_only(self) -> None:
         """Keep security review defensive, actionable, and inside its assigned scope."""
@@ -179,10 +220,10 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             for contract in required_contracts:
                 self.assertIn(contract, content, path)
 
-    def test_repository_workflows_route_specialists_and_require_final_writing_review(
+    def test_repository_workflows_route_specialists_and_run_final_writing_refactor(
         self,
     ) -> None:
-        """Route specialists selectively and require a final writing review."""
+        """Route reviewers and refactorers without blurring their responsibilities."""
         workflows = (
             REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md",
             REPOSITORY_ROOT
@@ -201,10 +242,6 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         risk_routes = {
             "responsibility-boundary-reviewer": "責務混在、設計境界、分散した副作用",
             "test-quality-reviewer": "弱いテスト、欠けているケース、実装詳細に依存したテスト",
-            "writing-principles-reviewer": (
-                "コメント、命名、テスト名、コミットメッセージにおける "
-                "`How / What / Why / Why Not` の配置不備"
-            ),
             "security-side-effect-reviewer": (
                 "外部 I/O、破壊的操作、機密データ、セキュリティ影響"
             ),
@@ -215,24 +252,25 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "専門 reviewer を汎用コードレビューの代替にしない。",
             "専門 reviewer は mode 名だけを理由に一律起動しない。",
             (
-                "`writing-principles-reviewer` の完了ゲートを除き、対象リスクがない"
-                "専門 reviewer を無条件で起動しない。"
+                "対象リスクがない専門 reviewer を無条件で起動しない。"
             ),
             "対象リスクと review 範囲を明示する。",
             (
-                "`writing-principles-reviewer` は、実行しない明確な理由がない限り、"
-                "最終的な受け入れ判断の直前に必ず起動する。"
-            ),
-            "受け入れ対象の最終 diff を review 範囲として渡す。",
-            (
-                "親は完了直前に限らず、記述原則のリスクを特定した時点でも"
-                "適宜起動してよい。"
+                "`writing-principles-refactorer` は `lite` / `standard` / `strict` の"
+                "すべてで、実行しない明確な理由がない限り、最終成果物の統合前または"
+                "完了直前に起動する。"
             ),
             (
-                "指摘を受けて差分を変更した場合は、更新後の最終 diff を"
-                "再度確認させる。"
+                "差分に対象となるコード、テスト、コメント、DocBlock が存在しない場合は"
+                "省略できる。"
             ),
-            "具体的な理由と親が行った代替確認を最終報告に含める。",
+            (
+                "`review-patch-refactorer` による指摘修正後に"
+                "`writing-principles-refactorer` が最終成果物を確認・修正する。"
+            ),
+            "両 refactorer の担当範囲は排他的ではない。",
+            "refactorer がファイルを変更した後は、対象 test を再実行する。",
+            "親が変更後の diff と検証結果を確認してから受け入れる。",
             "reviewer は最終的な受け入れ判断を行わない。",
             "親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。",
         )
@@ -246,6 +284,75 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                     self.assertIn(f"| `{name}` | {risk} |", workflow)
                 for rule in required_rules:
                     self.assertIn("".join(rule.split()), normalized_workflow)
+
+    def test_repository_workflow_defines_review_patch_routing_boundary(self) -> None:
+        """Patch only green implementations with concrete, behavior-preserving findings."""
+        workflows = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+        )
+        startup_conditions = (
+            "専門 reviewer の具体的な指摘が存在する。",
+            "Acceptance Criteria は満たされている。",
+            "機能的なテストは green である。",
+            "修正範囲が局所的である。",
+            "仕様の再解釈を必要としない。",
+            "新機能追加ではない。",
+            "振る舞いを維持したまま修正できる。",
+            "reviewer が修正方針または問題箇所を明示している。",
+        )
+        implementer_routes = (
+            "Acceptance Criteria 未達",
+            "仕様誤解",
+            "機能欠落",
+            "テスト失敗",
+            "正常系・異常系・境界値不足",
+            "振る舞い変更が必要",
+            "ケース追加や期待値の再検討が必要",
+            "`strict` mode の Red / Green / Refactor 継続",
+        )
+
+        for path in workflows:
+            with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
+                workflow = path.read_text(encoding="utf-8")
+                normalized_workflow = "".join(workflow.split())
+
+                for condition in startup_conditions:
+                    self.assertIn("".join(condition.split()), normalized_workflow)
+                for route in implementer_routes:
+                    self.assertIn("".join(route.split()), normalized_workflow)
+
+    def test_repository_distribution_does_not_reference_retired_agent_names(self) -> None:
+        """Remove retired names from every distributed source and generated surface."""
+        paths = (
+            REPOSITORY_ROOT / "shared",
+            REPOSITORY_ROOT / "plugins",
+            REPOSITORY_ROOT / "scripts",
+            REPOSITORY_ROOT / "tests",
+        )
+        retired_names = (
+            "writing-principles-" + "reviewer",
+            "refactor-patch-" + "agent",
+        )
+
+        for path in paths:
+            for file_path in path.rglob("*"):
+                if not file_path.is_file():
+                    continue
+                content = file_path.read_text(encoding="utf-8")
+                for name in retired_names:
+                    self.assertNotIn(name, content, file_path)
 
     def test_repository_workflows_select_delegation_modes_without_crossing_direct_boundary(
         self,
@@ -916,7 +1023,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             self.assertEqual(expected_body, metadata["developer_instructions"])
 
     def test_build_handles_optional_codex_sandbox_mode(self) -> None:
-        """Emit sandbox_mode for reviewers and omit it for an implementation agent."""
+        """Emit sandbox_mode for reviewers and omit it for writable agents."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._make_repository(root)
@@ -946,6 +1053,15 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                         reviewer_text.index("sandbox_mode ="),
                         reviewer_text.index("nickname_candidates ="),
                     )
+
+            for name in REFACTORER_NAMES:
+                with self.subTest(name=name):
+                    refactorer = tomllib.loads(
+                        (
+                            root / f"plugins/codex/install/agents/{name}.toml"
+                        ).read_text(encoding="utf-8")
+                    )
+                    self.assertNotIn("sandbox_mode", refactorer)
 
     def test_build_rejects_invalid_agent_frontmatter_without_writing(self) -> None:
         """Reject schema, type, name, delimiter, and placeholder violations atomically."""

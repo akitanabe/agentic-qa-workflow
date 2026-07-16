@@ -20,9 +20,9 @@ AGENT_NAMES = (
     "senior-implementer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
-    "writing-principles-reviewer",
+    "writing-principles-refactorer",
     "security-side-effect-reviewer",
-    "refactor-patch-agent",
+    "review-patch-refactorer",
 )
 VERSION_PATTERN = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
