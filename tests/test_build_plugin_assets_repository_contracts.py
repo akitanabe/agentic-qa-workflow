@@ -34,6 +34,20 @@ class BuildPluginAssetsRepositoryContractsTest(
             self.assertIn(instruction, skills.codex)
             self.assertNotIn(instruction, skills.claude)
 
+    def test_repository_skills_clean_up_only_after_the_final_gate(self) -> None:
+        """Clean up platform resources only after every final gate has passed."""
+        skills = self._repository_skill_texts()
+
+        self.assertIn("## 後始末", skills.source)
+        self.assertIn("最終ゲートをすべて通過した後", skills.claude)
+        self.assertIn("対象 Agent の終了後", skills.claude)
+        self.assertIn("`git worktree remove <worktree path>`", skills.claude)
+        self.assertIn("最終ゲートをすべて通過した後", skills.codex)
+        self.assertIn("親がこのタスク用に作成した", skills.codex)
+        self.assertIn("`git worktree remove <worktree path>`", skills.codex)
+        self.assertIn("親がこのワークフローで起動した agent を停止する。", skills.codex)
+        self.assertNotIn("親がこのワークフローで起動した agent を停止する。", skills.claude)
+
     def test_repository_skills_start_a_fresh_implementer_context_per_branch(
         self,
     ) -> None:
