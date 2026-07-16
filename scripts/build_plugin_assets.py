@@ -19,6 +19,7 @@ SKILL_REFERENCE_NAMES = (
     "implementation-branches.md",
     "expert-selection.md",
     "qa-and-integration.md",
+    "qa-report.md",
 )
 AGENT_NAMES = (
     "implementer",
