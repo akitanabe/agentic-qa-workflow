@@ -71,6 +71,86 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             self.assertIn(instruction, codex_skill)
             self.assertNotIn(instruction, claude_skill)
 
+    def test_repository_skills_start_a_fresh_implementer_context_per_branch(
+        self,
+    ) -> None:
+        """Align each implementation branch with one fresh Implementer context."""
+        source = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md"
+        ).read_text(encoding="utf-8")
+        codex_skill = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        claude_skill = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        shared_contract = (
+            "1実装枝 = 1つの新規 Implementer context",
+            "別の実装枝に同じ Implementer を再利用しない。",
+            "同一実装枝を完成させるための段階ゲートと差し戻し",
+        )
+
+        for instruction in shared_contract:
+            self.assertIn(instruction, source)
+            self.assertIn(instruction, codex_skill)
+            self.assertIn(instruction, claude_skill)
+
+        codex_context_boundary = (
+            '新規 Implementer の生成時は必ず `fork_turns: "none"` を指定する。'
+        )
+        self.assertIn(codex_context_boundary, source)
+        self.assertIn(codex_context_boundary, codex_skill)
+        self.assertNotIn(codex_context_boundary, claude_skill)
+
+    def test_repository_skills_require_self_contained_implementation_branch_data(
+        self,
+    ) -> None:
+        """Give a fresh Implementer all data needed to finish one branch."""
+        source = (
+            REPOSITORY_ROOT / "shared" / "skill" / "delegate-implementation.md"
+        ).read_text(encoding="utf-8")
+        generated_skills = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "codex"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude"
+            / "skills"
+            / "delegate-implementation"
+            / "SKILL.md",
+        )
+        required_data = (
+            "実装枝の目的",
+            "Acceptance Criteria",
+            "対象範囲と変更禁止範囲",
+            "最新の基準コミット",
+            "worktree path と branch 名",
+            "コードから読み取れない確定済みの設計判断や制約",
+            "委譲 mode と TDD 要件",
+            "検証 command",
+            "完了条件",
+            "commit と返却報告の形式",
+        )
+
+        for item in required_data:
+            self.assertIn(item, source)
+            for generated_skill in generated_skills:
+                self.assertIn(item, generated_skill.read_text(encoding="utf-8"))
+
     def test_repository_codex_agents_use_role_appropriate_model_profiles(
         self,
     ) -> None:
