@@ -54,16 +54,16 @@ CLAUDE_PROFILE_PATH = Path("plugins/claude/agents")
 @dataclass(frozen=True)
 class ModelProfile:
     model: str
-    effort: str
+    reasoning_effort: str
 
 
 @dataclass(frozen=True)
-class RepositorySkills:
+class RepositorySkillTexts:
     source: str
     claude: str
     codex: str
 
-    def all(self) -> tuple[str, str, str]:
+    def all_texts(self) -> tuple[str, str, str]:
         return (self.source, self.claude, self.codex)
 
 
@@ -97,8 +97,8 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
     def _repository_text(self, relative_path: Path) -> str:
         return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
 
-    def _repository_skill_texts(self) -> RepositorySkills:
-        return RepositorySkills(
+    def _repository_skill_texts(self) -> RepositorySkillTexts:
+        return RepositorySkillTexts(
             source=self._repository_text(SHARED_SKILL_PATH),
             claude=self._repository_text(GENERATED_SKILL_PATHS["claude"]),
             codex=self._repository_text(GENERATED_SKILL_PATHS["codex"]),
@@ -113,7 +113,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             self._repository_text(CODEX_PROFILE_PATH / f"{name}.toml")
         )
 
-    def _repository_workflows(self) -> dict[Path, str]:
+    def _repository_workflow_texts(self) -> dict[Path, str]:
         return {path: self._repository_text(path) for path in WORKFLOW_PATHS}
 
     def test_repository_codex_skill_waits_for_each_worker_response(self) -> None:
@@ -141,7 +141,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         )
 
         for instruction in shared_contract:
-            for skill in skills.all():
+            for skill in skills.all_texts():
                 self.assertIn(instruction, skill)
 
         codex_context_boundary = (
@@ -170,7 +170,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         )
 
         for item in required_data:
-            for skill in skills.all():
+            for skill in skills.all_texts():
                 self.assertIn(item, skill)
 
     def test_repository_codex_agents_use_role_appropriate_model_profiles(
@@ -185,11 +185,11 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                 self.assertEqual(expected.model, source_metadata["codex"]["model"])
                 self.assertEqual(expected.model, artifact_metadata["model"])
                 self.assertEqual(
-                    expected.effort,
+                    expected.reasoning_effort,
                     source_metadata["codex"]["model_reasoning_effort"],
                 )
                 self.assertEqual(
-                    expected.effort,
+                    expected.reasoning_effort,
                     artifact_metadata["model_reasoning_effort"],
                 )
 
@@ -203,15 +203,17 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
                 artifact = self._repository_text(CLAUDE_PROFILE_PATH / f"{name}.md")
 
                 self.assertEqual(expected.model, source_metadata["claude"]["model"])
-                self.assertEqual(expected.effort, source_metadata["claude"]["effort"])
+                self.assertEqual(
+                    expected.reasoning_effort, source_metadata["claude"]["effort"]
+                )
                 self.assertIn(f"model: {expected.model}\n", artifact)
-                self.assertIn(f"effort: {expected.effort}\n", artifact)
+                self.assertIn(f"effort: {expected.reasoning_effort}\n", artifact)
 
     def test_repository_workflows_gate_expert_implementation_with_selection_review(
         self,
     ) -> None:
         """Use expert only after an independent review approves its concrete rationale."""
-        workflows = self._repository_workflows()
+        workflows = self._repository_workflow_texts()
         required_contract = (
             "`expert-selection-reviewer`",
             "`APPROVE_EXPERT`",
@@ -340,7 +342,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         self,
     ) -> None:
         """Route reviewers and refactorers without blurring their responsibilities."""
-        workflows = self._repository_workflows()
+        workflows = self._repository_workflow_texts()
         risk_routes = {
             "responsibility-boundary-reviewer": "責務混在、設計境界、分散した副作用",
             "test-quality-reviewer": "弱いテスト、欠けているケース、実装詳細に依存したテスト",
@@ -388,7 +390,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_repository_workflow_defines_review_patch_routing_boundary(self) -> None:
         """Patch only green implementations with concrete, behavior-preserving findings."""
-        workflows = self._repository_workflows()
+        workflows = self._repository_workflow_texts()
         startup_conditions = (
             "専門 reviewer の具体的な指摘が存在する。",
             "Acceptance Criteria は満たされている。",
@@ -444,7 +446,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         self,
     ) -> None:
         """Select delegation modes while keeping direct work outside the skill."""
-        workflows = self._repository_workflows()
+        workflows = self._repository_workflow_texts()
         required_rules = (
             "`direct` は親が実装する、この skill の外にある経路である。",
             "タスク規模だけでこの skill を発火しない。",
@@ -503,7 +505,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         self,
     ) -> None:
         """Apply each delegation mode's QA strength and retain parent verification."""
-        workflows = self._repository_workflows()
+        workflows = self._repository_workflow_texts()
         mode_contracts = (
             (
                 "| `lite` |",
@@ -726,7 +728,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
         shutil.copy2(BUILDER_SOURCE, script)
 
     @contextmanager
-    def _repository(self) -> Iterator[Path]:
+    def _temporary_repository(self) -> Iterator[Path]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._make_repository(root)
@@ -788,7 +790,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_generates_all_assets_and_syncs_versions(self) -> None:
         """Generate two skills, fourteen agents, and three synchronized versions."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             result = self._run(root)
 
             self.assertEqual(0, result.returncode, result)
@@ -811,7 +813,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_filters_markers_before_replacing_terms(self) -> None:
         """Select one platform branch, then replace terms without leaking markers."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
 
@@ -834,7 +836,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_accepts_whitespace_around_marker_lines(self) -> None:
         """Treat a marker as valid after stripping leading and trailing whitespace."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             source = root / "shared/skill/delegate-implementation.md"
             content = source.read_text(encoding="utf-8")
             content = content.replace("<!-- claude-only", "  <!-- claude-only")
@@ -870,7 +872,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "missing action": "<!-- claude-only -->\n",
         }
         for label, invalid in invalid_sources.items():
-            with self.subTest(label=label), self._repository() as root:
+            with self.subTest(label=label), self._temporary_repository() as root:
                 source = root / "shared/skill/delegate-implementation.md"
                 source.write_text(
                     source.read_text(encoding="utf-8").replace(
@@ -897,7 +899,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_preserves_unrelated_html_comments(self) -> None:
         """Keep ordinary HTML comments that are not platform marker syntax."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             source = root / "shared/skill/delegate-implementation.md"
             comment = "<!-- ordinary documentation note -->"
             source.write_text(
@@ -968,7 +970,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             for problem in ("frontmatter", "body"):
                 with (
                     self.subTest(platform=platform, problem=problem),
-                    self._repository() as root,
+                    self._temporary_repository() as root,
                 ):
                     source = root / "shared/skill/delegate-implementation.md"
                     source.write_text(
@@ -988,7 +990,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_renders_agent_metadata_and_markdown_body(self) -> None:
         """Render ordered platform metadata while preserving the Markdown body."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
 
@@ -1048,7 +1050,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_codex_agent_body_round_trips_toml_special_characters(self) -> None:
         """Preserve quotes, backslashes, and triple quotes through Codex TOML."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
 
@@ -1069,7 +1071,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_handles_optional_codex_sandbox_mode(self) -> None:
         """Emit sandbox_mode for reviewers and omit it for writable agents."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
 
@@ -1186,7 +1188,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "missing opening frontmatter": lambda text: text.removeprefix("+++\n"),
         }
         for label, mutate in mutations.items():
-            with self.subTest(label=label), self._repository() as root:
+            with self.subTest(label=label), self._temporary_repository() as root:
                 source = root / "shared/agents/implementer.md"
                 source.write_text(
                     mutate(source.read_text(encoding="utf-8")),
@@ -1203,7 +1205,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
     def test_build_rejects_empty_agent_markdown_bodies_without_writing(self) -> None:
         """Reject absent and whitespace-only common agent bodies atomically."""
         for label, body in (("absent", ""), ("whitespace", " \n\t\n")):
-            with self.subTest(label=label), self._repository() as root:
+            with self.subTest(label=label), self._temporary_repository() as root:
                 source = root / "shared/agents/implementer.md"
                 frontmatter = source.read_text(encoding="utf-8").rsplit("+++\n", 1)[0]
                 source.write_text(
@@ -1276,14 +1278,14 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             ),
         }
         for label, mutate in mutations.items():
-            with self.subTest(label=label), self._repository() as root:
+            with self.subTest(label=label), self._temporary_repository() as root:
                 mutate(root)
                 before = self._snapshot(self._generated_paths(root))
                 self._assert_validation_error(root, ("shared/",), before)
 
     def test_build_does_not_recursively_expand_term_values(self) -> None:
         """Leave placeholder-shaped text introduced by a term value untouched."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             terms = root / "shared/terms.toml"
             terms.write_text(
                 terms.read_text(encoding="utf-8")
@@ -1326,12 +1328,12 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             *(f"shared/agents/{name}.md" for name in AGENT_NAMES),
         )
         for missing in required_sources:
-            with self.subTest(missing=missing), self._repository() as root:
+            with self.subTest(missing=missing), self._temporary_repository() as root:
                 (root / missing).unlink()
                 before = self._snapshot(self._generated_paths(root))
                 self._assert_validation_error(root, (missing,), before)
 
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             self._write(root, "shared/agents/unknown-agent.md", self._agent_source("unknown-agent"))
             before = self._snapshot(self._generated_paths(root))
             self._assert_validation_error(
@@ -1353,7 +1355,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             "1.2.3\nextra",
         )
         for version in invalid_versions:
-            with self.subTest(version=version), self._repository() as root:
+            with self.subTest(version=version), self._temporary_repository() as root:
                 (root / "shared/VERSION").write_text(
                     f"{version}\n", encoding="utf-8", newline=""
                 )
@@ -1363,7 +1365,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
     def test_build_accepts_zero_and_multi_digit_version_components(self) -> None:
         """Accept zero and nonzero multi-digit components allowed by the version regex."""
         for version in ("0.0.0", "10.20.30"):
-            with self.subTest(version=version), self._repository() as root:
+            with self.subTest(version=version), self._temporary_repository() as root:
                 (root / "shared/VERSION").write_text(
                     f"{version}\n", encoding="utf-8", newline=""
                 )
@@ -1416,13 +1418,13 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
             for problem in problems:
                 with (
                     self.subTest(manifest=manifest, problem=problem),
-                    self._repository() as root,
+                    self._temporary_repository() as root,
                 ):
                     apply_manifest_problem(root / manifest, problem)
                     before = self._snapshot(self._generated_paths(root))
                     self._assert_validation_error(root, (manifest,), before)
 
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             apply_manifest_problem(root / manifests[0], "invalid JSON")
             apply_manifest_problem(root / manifests[1], "top-level non-object")
             before = self._snapshot(self._generated_paths(root))
@@ -1431,7 +1433,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_places_generated_warnings_only_on_markdown_and_agent_toml(self) -> None:
         """Place exact warnings at generated frontmatter boundaries and nowhere else."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
 
@@ -1466,7 +1468,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_check_succeeds_without_modifying_matching_outputs(self) -> None:
         """Return zero from --check and leave matching generated files untouched."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             build = self._run(root)
             self.assertEqual(0, build.returncode, build)
             paths = self._generated_paths(root)
@@ -1485,7 +1487,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_check_reports_all_stale_and_missing_outputs_without_writing(self) -> None:
         """List every mismatch on stderr with exit one and never repair it in --check."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             build = self._run(root)
             self.assertEqual(0, build.returncode, build)
 
@@ -1516,7 +1518,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_check_reports_input_errors_without_writing(self) -> None:
         """Return validation exit one on --check and preserve every stale output."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             (root / "shared/VERSION").write_text(
                 "01.0.0\n", encoding="utf-8", newline=""
             )
@@ -1534,7 +1536,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
     def test_cli_rejects_unknown_and_positional_arguments(self) -> None:
         """Return argparse-style usage errors without changing generated files."""
         for arguments in (("--unknown",), ("positional",), ("--check", "extra")):
-            with self.subTest(arguments=arguments), self._repository() as root:
+            with self.subTest(arguments=arguments), self._temporary_repository() as root:
                 paths = self._generated_paths(root)
                 before = self._snapshot(paths)
 
@@ -1547,7 +1549,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_independent_input_errors_are_aggregated_without_partial_updates(self) -> None:
         """Report independent source errors together before changing any output."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             skill = root / "shared/skill/delegate-implementation.md"
             skill.write_text(
                 "<!-- claude-only:start -->\nunclosed\n",
@@ -1575,7 +1577,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_updates_only_files_with_changed_content(self) -> None:
         """Avoid rewriting equal files and repair only one deliberately stale output."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             first = self._run(root)
             self.assertEqual(0, first.returncode, first)
             paths = self._generated_paths(root)
@@ -1603,7 +1605,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_is_deterministic_utf8_lf_with_trailing_newlines(self) -> None:
         """Produce identical UTF-8 bytes with LF endings from identical inputs."""
-        with self._repository() as first_root, self._repository() as second_root:
+        with self._temporary_repository() as first_root, self._temporary_repository() as second_root:
             roots = (first_root, second_root)
             snapshots = []
             for root in roots:
@@ -1623,7 +1625,7 @@ class BuildPluginAssetsCliTest(unittest.TestCase):
 
     def test_build_and_check_preserve_out_of_scope_files(self) -> None:
         """Leave interface metadata, docs, installer, and unrelated agents unchanged."""
-        with self._repository() as root:
+        with self._temporary_repository() as root:
             outside_paths = [
                 root / "README.md",
                 root / "docs/plan.md",
