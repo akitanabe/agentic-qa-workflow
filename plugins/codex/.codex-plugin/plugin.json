@@ -1,6 +1,6 @@
 {
   "name": "agentic-qa-workflow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Install the bundled custom agents and delegate implementation while the parent Codex agent keeps responsibility for planning, QA, review, and final verification.",
   "author": {
     "name": "akitanabe"
