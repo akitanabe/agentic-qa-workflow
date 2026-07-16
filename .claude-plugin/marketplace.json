@@ -10,7 +10,6 @@
       "name": "agentic-qa-workflow",
       "source": "./plugins/claude",
       "description": "実装作業をサブエージェントへ委譲しつつ、親エージェントがマネージャー兼 QA として品質責任を持つための Claude Code プラグイン。",
-      "version": "1.1.0",
       "author": {
         "name": "akitanabe"
       }
