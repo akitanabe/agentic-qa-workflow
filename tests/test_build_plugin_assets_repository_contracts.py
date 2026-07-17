@@ -25,39 +25,109 @@ class BuildPluginAssetsRepositoryContractsTest(
     RepositoryContractSupport,
     unittest.TestCase,
 ):
+    def _assert_qa_report_reference_files_exist(self) -> None:
+        paths = (
+            SHARED_SKILL_REFERENCE_PATHS["qa-report.md"],
+            GENERATED_SKILL_REFERENCE_PATHS["claude"]["qa-report.md"],
+            GENERATED_SKILL_REFERENCE_PATHS["codex"]["qa-report.md"],
+        )
+        for path in paths:
+            self.assertTrue(
+                (REPOSITORY_ROOT / path).is_file(),
+                f"missing QA report reference: {path}",
+            )
+
+    def _read_qa_report_references(self) -> dict[Path, str]:
+        self._assert_qa_report_reference_files_exist()
+        return {
+            SHARED_SKILL_REFERENCE_PATHS["qa-report.md"]: self._repository_text(
+                SHARED_SKILL_REFERENCE_PATHS["qa-report.md"]
+            ),
+            GENERATED_SKILL_REFERENCE_PATHS["claude"][
+                "qa-report.md"
+            ]: self._repository_text(
+                GENERATED_SKILL_REFERENCE_PATHS["claude"]["qa-report.md"]
+            ),
+            GENERATED_SKILL_REFERENCE_PATHS["codex"][
+                "qa-report.md"
+            ]: self._repository_text(
+                GENERATED_SKILL_REFERENCE_PATHS["codex"]["qa-report.md"]
+            ),
+        }
+
+    def _extract_qa_report_template(self, report: str) -> str:
+        heading = "## 標準テンプレート"
+        opening_fence = "```markdown\n"
+        closing_fence = "\n```"
+        self.assertEqual(1, report.count(heading))
+        template_section = report.split(heading, 1)[1]
+        self.assertEqual(1, template_section.count(opening_fence))
+        fenced_content = template_section.split(opening_fence, 1)[1]
+        self.assertIn(closing_fence, fenced_content)
+        return fenced_content.split(closing_fence, 1)[0]
+
+    def _assert_qa_report_template_excludes_raw_fields(self, template: str) -> None:
+        forbidden_template_fields = (
+            "Conversation:",
+            "Prompt:",
+            "Raw reviewer output:",
+            "Raw command log:",
+            "Full command log:",
+            "Credential:",
+            "Absolute path:",
+            "Local checkout path:",
+            "Integration checkout / commit",
+        )
+        for field in forbidden_template_fields:
+            self.assertNotIn(field, template)
+
     def test_repository_skill_uses_progressive_disclosure(self) -> None:
         """Keep the core workflow lean and route each detailed phase explicitly."""
-        skills = self._repository_skill_texts()
-        main_texts = (
-            skills.source_main,
-            skills.claude_main,
-            skills.codex_main,
-        )
+        main_texts = {
+            SHARED_SKILL_PATH: self._repository_text(SHARED_SKILL_PATH),
+            GENERATED_SKILL_PATHS["claude"]: self._repository_text(
+                GENERATED_SKILL_PATHS["claude"]
+            ),
+            GENERATED_SKILL_PATHS["codex"]: self._repository_text(
+                GENERATED_SKILL_PATHS["codex"]
+            ),
+        }
         reference_headings = {
             "implementation-branches.md": "# 実装枝の準備と委譲",
             "expert-selection.md": "# Expert 選択",
             "qa-and-integration.md": "# QA・修正・統合",
+            "qa-report.md": "# 永続 QA レポート",
         }
 
-        for main in main_texts:
-            self.assertLess(len(main.splitlines()), 300)
-            for name in SKILL_REFERENCE_NAMES:
-                self.assertIn(f"(references/{name})", main)
-            for heading in reference_headings.values():
-                self.assertNotIn(heading, main)
-            self.assertLess(
-                main.index("(references/implementation-branches.md)"),
-                main.index("(references/expert-selection.md)"),
-            )
-            self.assertLess(
-                main.index("(references/expert-selection.md)"),
-                main.index("先頭の枝だけを委譲する"),
-            )
-            self.assertLess(
-                main.index("先頭の枝だけを委譲する"),
-                main.index("(references/qa-and-integration.md)"),
-            )
+        for path, main in main_texts.items():
+            with self.subTest(path=path):
+                self.assertLess(len(main.splitlines()), 300)
+                for name in SKILL_REFERENCE_NAMES:
+                    self.assertIn(f"(references/{name})", main)
+                for heading in reference_headings.values():
+                    self.assertNotIn(heading, main)
+                self.assertLess(
+                    main.index("(references/implementation-branches.md)"),
+                    main.index("(references/expert-selection.md)"),
+                )
+                self.assertLess(
+                    main.index("(references/expert-selection.md)"),
+                    main.index("先頭の枝だけを委譲する"),
+                )
+                self.assertLess(
+                    main.index("先頭の枝だけを委譲する"),
+                    main.index("(references/qa-and-integration.md)"),
+                )
+                normalized = "".join(main.split())
+                conditional_reference = (
+                    "永続QAレポートの出力条件を満たす場合だけ"
+                    "[永続QAレポート](references/qa-report.md)を読む"
+                )
+                self.assertIn(conditional_reference, normalized)
+                self.assertEqual(1, main.count("(references/qa-report.md)"))
 
+        self._assert_qa_report_reference_files_exist()
+        skills = self._repository_skill_texts()
         for name, heading in reference_headings.items():
             self.assertIn(heading, skills.source_references[name])
             self.assertIn(heading, skills.claude_references[name])
@@ -77,6 +147,342 @@ class BuildPluginAssetsRepositoryContractsTest(
                     f"{GENERATED_MARKDOWN_WARNING}\n\n"
                 )
             )
+
+    def test_repository_writes_one_parent_qa_report_only_when_requested(
+        self,
+    ) -> None:
+        """Generate one parent-owned report only after an explicit opt-in."""
+        required_contracts = (
+            "会話上の最終報告は常に行う。",
+            "永続 QA レポートは任意",
+            "`lite` / `standard` / `strict`",
+            "`direct` は対象外",
+            "既定では生成しない",
+            "ユーザーの明示的な要求",
+            "repository instruction",
+            "Acceptance Criteria",
+            "いずれかが要求した場合だけ",
+            "親の最終判断時に1回",
+            "トップレベルの workflow run ごとに report は1つだけ生成",
+            "複数の実装枝は同じ report へ列挙",
+            "`Accepted`",
+            "`Rejected`",
+            "`Needs revision`",
+            "未実行の検証",
+            "未統合の状態",
+            "最終判断は親だけが行う",
+            "sanitize できない場合は生成しない",
+            "生成しなかった理由を会話上の最終報告へ含める",
+        )
+
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_creation_is_confined_and_non_overwriting(
+        self,
+    ) -> None:
+        """Reject traversal and links, and never overwrite an existing report."""
+        required_contracts = (
+            "repository root 相対の `.agentic-qa/reports/<slug>.md`",
+            "task ID または title",
+            "空なら branch",
+            "Unicode NFKC",
+            "前後の空白を除去",
+            "ASCII lowercase",
+            "非 `[a-z0-9]` の連続を `-`",
+            "連続する `-` と前後の `-` を除去",
+            "base は最大64文字",
+            "`delegated-implementation`",
+            "機密な入力名は使わず fallback",
+            "Windows 予約名には `qa-` prefix",
+            "`con`, `prn`, `aux`, `nul`, `com1`〜`com9`, `lpt1`〜`lpt9`",
+            "path separator を許可しない",
+            "`.` または `..` を許可しない",
+            "絶対 path を許可しない",
+            "reports 直下以外を許可しない",
+            "`ＡＢＣ １２３` は `abc-123`",
+            "title が `日本語`、branch が `Feature QA` なら `feature-qa`",
+            "title と branch が `日本語` なら `delegated-implementation`",
+            "`CON` は `qa-con`",
+            "既存 file を上書きしない",
+            "`<slug>-2.md`, `<slug>-3.md`",
+            "最初の空き",
+            "suffix 込みの stem は最大80文字",
+            "base の末尾を切る",
+            "出力先または候補が symlink、directory、非通常 file なら停止",
+            "`.agentic-qa` と `reports` の各既存 ancestor component",
+            "symlink を追わない `lstat` 相当",
+            "symlink または directory 以外なら停止",
+            "canonical repository root 外へ解決される場合は停止",
+            "生成と削除の両方へ適用",
+            "sanitized Markdown Data を先に完成",
+            "symlink を追わない exclusive create 相当",
+            "1回だけ書く",
+            "競合時は書き込まず次の suffix を再選択",
+            "安全な create Action を保証できない場合は生成しない",
+            "workflow 内では既存 report を更新しない",
+        )
+
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+                self.assertNotIn(
+                    "".join(
+                        "既存 report の更新はユーザーが対象 path を明示".split()
+                    ),
+                    normalized,
+                )
+
+    def test_repository_does_not_manage_or_delete_qa_reports_implicitly(
+        self,
+    ) -> None:
+        """Leave Git management, retention, and deletion to explicit policy."""
+        required_contracts = (
+            "`agentic-qa-workflow` repository の template source と generated asset は tracked 配布物",
+            "利用先 repository で生成する report instance",
+            "既定では untracked / unstaged / uncommitted",
+            "`.gitignore` と `.git/info/exclude` を自動変更しない",
+            "`git status` に `??` として表示されてよい",
+            "既定では `git add`、stage、commit しない",
+            "ユーザーの明示的な要求または既存の repository policy",
+            "既存の実装 commit へ黙って amend しない",
+            "自動期限または自動 purge を行わない",
+            "明示的な削除または repository policy まで保持",
+            "reports 配下であることを確認してから削除",
+            "通常の削除 commit では Git 履歴から機密情報を消去できない",
+            "親の統合 checkout へ保存",
+            "削除予定の worker worktree へ保存しない",
+        )
+
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_persists_only_sanitized_evidence(self) -> None:
+        """Persist only minimal reviewed evidence without secrets or raw transcripts."""
+        prohibited_content = (
+            "会話全文",
+            "prompt",
+            "reviewer の生出力",
+            "command の全 log",
+            "token",
+            "password",
+            "cookie",
+            "Authorization",
+            "private key",
+            "`.env`",
+            "credential 付き URL",
+            "機密 query",
+            "個人情報",
+        )
+        sanitized_evidence_contracts = (
+            "file は repository 相対 path",
+            "worktree は論理 ID、branch、cleanup 状態",
+            "Implementer は role 名",
+            "command は sanitize 済み文字列、status、短い要約",
+            "次の機密情報と生の証跡を保存しない",
+            "絶対 path と local checkout path を保存しない",
+            "branch と file が敏感なら省略または sanitize",
+            "保存直前に親が report 全体を確認",
+        )
+
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in prohibited_content + sanitized_evidence_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_normalizes_untrusted_markdown_fields(
+        self,
+    ) -> None:
+        """Render untrusted values as escaped single-line Markdown text."""
+        required_contracts = (
+            "untrusted field",
+            "改行 `\\n` と control 文字を空白へ置換して単一行",
+            "Markdown context に応じて metacharacter を escape",
+            "HTML、link、image を plain text として escape",
+            "`line 1\\nline 2` は `line 1 line 2`",
+            "`<b>admin</b>` は `&lt;b&gt;admin&lt;/b&gt;`",
+            "`[label](https://example.invalid)` は plain text として escape",
+            "`![alt](https://example.invalid/image.png)` は plain text として escape",
+        )
+
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_qa_report_template_exposes_complete_parent_qa(self) -> None:
+        """Expose every decision and verification gap needed for parent acceptance."""
+        required_fields = (
+            "Sanitized task ID / title",
+            "Mode",
+            "Base commit",
+            "Logical checkout ID / commit",
+            "Implementation branches",
+            "Acceptance Criteria → test",
+            "Changed files",
+            "Verification",
+            "`Pass` / `Fail` / `Not run`",
+            "`Not run` は理由必須",
+            "Red / Green / Refactor",
+            "Responsibility boundaries",
+            "Test quality",
+            "Writing principles",
+            "Security / side effects",
+            "Integrated diff review",
+            "Residual risks",
+            "Parent decision",
+            "`Accepted` / `Rejected` / `Needs revision`",
+            "判断理由",
+            "Next action",
+            "reviewer を起動しなかった場合も理由を記録",
+            "対象 risk がないことは有効な理由",
+            "最終判断は親だけが記入",
+        )
+
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for field in required_fields:
+                    self.assertIn("".join(field.split()), normalized)
+
+                template = self._extract_qa_report_template(report)
+                required_template_fields = (
+                    "Logical checkout ID / commit",
+                    "Logical worktree ID",
+                    "Branch (sanitized or omitted)",
+                    "Implementer role",
+                    "Sanitized command",
+                    "Status",
+                    "Short summary",
+                )
+                for field in required_template_fields:
+                    self.assertIn(field, template)
+                self._assert_qa_report_template_excludes_raw_fields(template)
+
+    def test_repository_writes_qa_report_after_cleanup_and_before_chat_report(
+        self,
+    ) -> None:
+        """Persist cleanup outcomes before sending the required chat report."""
+        skills = self._repository_skill_texts()
+        main_texts = (
+            skills.source_main,
+            skills.claude_main,
+            skills.codex_main,
+        )
+        cleanup_instruction = "cleanup の実施可否と結果を確定する"
+        report_reference = "(references/qa-report.md)"
+        final_report = "会話上の最終報告を行う"
+
+        for main in main_texts:
+            normalized = " ".join(main.split())
+            self.assertIn(cleanup_instruction, normalized)
+            self.assertIn(report_reference, normalized)
+            self.assertIn(final_report, normalized)
+            self.assertLess(
+                normalized.index(cleanup_instruction),
+                normalized.index(report_reference),
+            )
+            self.assertLess(
+                normalized.index(report_reference),
+                normalized.index(final_report),
+            )
+
+        required_reference_contracts = (
+            "最終 gate 後に cleanup の実施可否と結果を確定してから",
+            "出力条件を満たす場合だけ report を生成",
+            "`Needs revision` などで worktree を保持する場合も cleanup 状態と理由を記録",
+        )
+        for path, report in self._read_qa_report_references().items():
+            with self.subTest(path=path):
+                normalized = "".join(report.split())
+                for contract in required_reference_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_continues_revisions_but_finalizes_unintegrated_termination(
+        self,
+    ) -> None:
+        """Continue revisions; finalize only an explicit unintegrated decision."""
+        skills = self._repository_skill_texts()
+        main = "".join(skills.source_main.split())
+        qa_reference = skills.source_references["qa-and-integration.md"]
+        qa_and_integration = "".join(qa_reference.split())
+        unintegrated_section = qa_reference[
+            qa_reference.index("## 未統合で終了する場合") : qa_reference.index(
+                "## 責務境界"
+            )
+        ]
+        normalized_unintegrated_section = "".join(unintegrated_section.split())
+        revision_continuation = (
+            "QA 修正を続ける場合は手順7の修正経路を継続する。"
+        )
+        unintegrated_termination = (
+            "親が未統合の枝について `Rejected` / `Needs revision` を最終判断とし、"
+            "top-level workflow を終了する場合は、手順9へ進む。"
+        )
+        finalization = (
+            "全枝を完了した場合、または手順8で未統合のまま終了する場合は、"
+            "適用可能な統合済み diff review と最終検証を行い、親の最終判断を確定する。"
+        )
+        cleanup_decision = (
+            "最終 gate 後に、各 worker worktree の cleanup の実施可否と結果を確定する。"
+        )
+        final_decision_invariant = (
+            "全ての委譲 mode で、親の最終判断を省略しない。"
+            "受け入れた枝では統合後の検証を省略しない。"
+        )
+        main_contracts = (
+            revision_continuation,
+            unintegrated_termination,
+            finalization,
+            cleanup_decision,
+            final_decision_invariant,
+        )
+        reference_contracts = (
+            "通常の `Needs revision` は上の修正先へ差し戻し、top-level workflow を継続する。",
+            "親が未統合の枝について `Rejected` / `Needs revision` を最終判断とし、top-level workflow を終了する場合だけ",
+            "実行可能な検証を行い",
+            "未実行の検証、未統合の理由、worktree を保持する理由",
+            "Data として記録",
+            "main の手順9へ戻る",
+        )
+
+        for contract in main_contracts:
+            self.assertIn("".join(contract.split()), main)
+        for contract in reference_contracts:
+            self.assertIn("".join(contract.split()), qa_and_integration)
+        self.assertNotIn("cleanup", normalized_unintegrated_section)
+        self.assertNotIn(
+            "".join(
+                "全ての委譲 mode で、親による統合後の検証と最終的な受け入れ判断を省略しない。".split()
+            ),
+            main,
+        )
+
+        normalized_termination = "".join(unintegrated_termination.split())
+        normalized_finalization = "".join(finalization.split())
+        normalized_cleanup_decision = "".join(cleanup_decision.split())
+        self.assertLess(
+            main.index(normalized_termination),
+            main.index(normalized_finalization),
+        )
+        self.assertLess(
+            main.index(normalized_finalization),
+            main.index(normalized_cleanup_decision),
+        )
+        self.assertLess(
+            main.index(normalized_cleanup_decision),
+            main.index("(references/qa-report.md)"),
+        )
 
     def test_repository_workflow_normalizes_implementation_branch_boundaries(
         self,
