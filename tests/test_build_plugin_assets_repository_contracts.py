@@ -408,6 +408,82 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for contract in required_reference_contracts:
                     self.assertIn("".join(contract.split()), normalized)
 
+    def test_repository_continues_revisions_but_finalizes_unintegrated_termination(
+        self,
+    ) -> None:
+        """Continue revisions; finalize only an explicit unintegrated decision."""
+        skills = self._repository_skill_texts()
+        main = "".join(skills.source_main.split())
+        qa_reference = skills.source_references["qa-and-integration.md"]
+        qa_and_integration = "".join(qa_reference.split())
+        unintegrated_section = qa_reference[
+            qa_reference.index("## 未統合で終了する場合") : qa_reference.index(
+                "## 責務境界"
+            )
+        ]
+        normalized_unintegrated_section = "".join(unintegrated_section.split())
+        revision_continuation = (
+            "QA 修正を続ける場合は手順7の修正経路を継続する。"
+        )
+        unintegrated_termination = (
+            "親が未統合の枝について `Rejected` / `Needs revision` を最終判断とし、"
+            "top-level workflow を終了する場合は、手順9へ進む。"
+        )
+        finalization = (
+            "全枝を完了した場合、または手順8で未統合のまま終了する場合は、"
+            "適用可能な統合済み diff review と最終検証を行い、親の最終判断を確定する。"
+        )
+        cleanup_decision = (
+            "最終 gate 後に、各 worker worktree の cleanup の実施可否と結果を確定する。"
+        )
+        final_decision_invariant = (
+            "全ての委譲 mode で、親の最終判断を省略しない。"
+            "受け入れた枝では統合後の検証を省略しない。"
+        )
+        main_contracts = (
+            revision_continuation,
+            unintegrated_termination,
+            finalization,
+            cleanup_decision,
+            final_decision_invariant,
+        )
+        reference_contracts = (
+            "通常の `Needs revision` は上の修正先へ差し戻し、top-level workflow を継続する。",
+            "親が未統合の枝について `Rejected` / `Needs revision` を最終判断とし、top-level workflow を終了する場合だけ",
+            "実行可能な検証を行い",
+            "未実行の検証、未統合の理由、worktree を保持する理由",
+            "Data として記録",
+            "main の手順9へ戻る",
+        )
+
+        for contract in main_contracts:
+            self.assertIn("".join(contract.split()), main)
+        for contract in reference_contracts:
+            self.assertIn("".join(contract.split()), qa_and_integration)
+        self.assertNotIn("cleanup", normalized_unintegrated_section)
+        self.assertNotIn(
+            "".join(
+                "全ての委譲 mode で、親による統合後の検証と最終的な受け入れ判断を省略しない。".split()
+            ),
+            main,
+        )
+
+        normalized_termination = "".join(unintegrated_termination.split())
+        normalized_finalization = "".join(finalization.split())
+        normalized_cleanup_decision = "".join(cleanup_decision.split())
+        self.assertLess(
+            main.index(normalized_termination),
+            main.index(normalized_finalization),
+        )
+        self.assertLess(
+            main.index(normalized_finalization),
+            main.index(normalized_cleanup_decision),
+        )
+        self.assertLess(
+            main.index(normalized_cleanup_decision),
+            main.index("(references/qa-report.md)"),
+        )
+
     def test_repository_workflow_normalizes_implementation_branch_boundaries(
         self,
     ) -> None:
