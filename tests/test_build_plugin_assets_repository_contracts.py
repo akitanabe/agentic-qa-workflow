@@ -26,7 +26,6 @@ class BuildPluginAssetsRepositoryContractsTest(
     unittest.TestCase,
 ):
     def _assert_qa_report_reference_files_exist(self) -> None:
-        """Require the canonical and generated QA report reference files."""
         paths = (
             SHARED_SKILL_REFERENCE_PATHS["qa-report.md"],
             GENERATED_SKILL_REFERENCE_PATHS["claude"]["qa-report.md"],
@@ -38,8 +37,7 @@ class BuildPluginAssetsRepositoryContractsTest(
                 f"missing QA report reference: {path}",
             )
 
-    def _repository_qa_report_texts(self) -> dict[Path, str]:
-        """Return the canonical and generated QA report contracts."""
+    def _read_qa_report_references(self) -> dict[Path, str]:
         self._assert_qa_report_reference_files_exist()
         return {
             SHARED_SKILL_REFERENCE_PATHS["qa-report.md"]: self._repository_text(
@@ -58,7 +56,7 @@ class BuildPluginAssetsRepositoryContractsTest(
         }
 
     def _extract_qa_report_template(self, report: str) -> str:
-        heading = "## 標準 template"
+        heading = "## 標準テンプレート"
         opening_fence = "```markdown\n"
         closing_fence = "\n```"
         self.assertEqual(1, report.count(heading))
@@ -150,8 +148,10 @@ class BuildPluginAssetsRepositoryContractsTest(
                 )
             )
 
-    def test_repository_qa_report_is_opt_in_single_run_parent_output(self) -> None:
-        """Write one optional report only when a delegated workflow requests it."""
+    def test_repository_writes_one_parent_qa_report_only_when_requested(
+        self,
+    ) -> None:
+        """Generate one parent-owned report only after an explicit opt-in."""
         required_contracts = (
             "会話上の最終報告は常に行う。",
             "永続 QA レポートは任意",
@@ -163,7 +163,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             "Acceptance Criteria",
             "いずれかが要求した場合だけ",
             "親の最終判断時に1回",
-            "1トップレベル workflow run につき1 report",
+            "トップレベルの workflow run ごとに report は1つだけ生成",
             "複数の実装枝は同じ report へ列挙",
             "`Accepted`",
             "`Rejected`",
@@ -175,16 +175,16 @@ class BuildPluginAssetsRepositoryContractsTest(
             "生成しなかった理由を会話上の最終報告へ含める",
         )
 
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
                 for contract in required_contracts:
                     self.assertIn("".join(contract.split()), normalized)
 
-    def test_repository_qa_report_uses_safe_collision_free_report_paths(
+    def test_repository_qa_report_creation_is_confined_and_non_overwriting(
         self,
     ) -> None:
-        """Derive a bounded direct-child path without traversal or overwrite."""
+        """Reject traversal and links, and never overwrite an existing report."""
         required_contracts = (
             "repository root 相対の `.agentic-qa/reports/<slug>.md`",
             "task ID または title",
@@ -226,7 +226,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             "workflow 内では既存 report を更新しない",
         )
 
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
                 for contract in required_contracts:
@@ -238,10 +238,10 @@ class BuildPluginAssetsRepositoryContractsTest(
                     normalized,
                 )
 
-    def test_repository_qa_report_keeps_git_and_retention_actions_explicit(
+    def test_repository_does_not_manage_or_delete_qa_reports_implicitly(
         self,
     ) -> None:
-        """Keep report instances outside implicit Git and deletion actions."""
+        """Leave Git management, retention, and deletion to explicit policy."""
         required_contracts = (
             "`agentic-qa-workflow` repository の template source と generated asset は tracked 配布物",
             "利用先 repository で生成する report instance",
@@ -259,7 +259,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             "削除予定の worker worktree へ保存しない",
         )
 
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
                 for contract in required_contracts:
@@ -267,7 +267,7 @@ class BuildPluginAssetsRepositoryContractsTest(
 
     def test_repository_qa_report_persists_only_sanitized_evidence(self) -> None:
         """Persist only minimal reviewed evidence without secrets or raw transcripts."""
-        forbidden_evidence = (
+        prohibited_content = (
             "会話全文",
             "prompt",
             "reviewer の生出力",
@@ -282,7 +282,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             "機密 query",
             "個人情報",
         )
-        allowed_evidence = (
+        sanitized_evidence_contracts = (
             "file は repository 相対 path",
             "worktree は論理 ID、branch、cleanup 状態",
             "Implementer は role 名",
@@ -293,13 +293,11 @@ class BuildPluginAssetsRepositoryContractsTest(
             "保存直前に親が report 全体を確認",
         )
 
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
-                for evidence in forbidden_evidence:
-                    self.assertIn("".join(evidence.split()), normalized)
-                for evidence in allowed_evidence:
-                    self.assertIn("".join(evidence.split()), normalized)
+                for contract in prohibited_content + sanitized_evidence_contracts:
+                    self.assertIn("".join(contract.split()), normalized)
 
     def test_repository_qa_report_normalizes_untrusted_markdown_fields(
         self,
@@ -316,7 +314,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             "`![alt](https://example.invalid/image.png)` は plain text として escape",
         )
 
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
                 for contract in required_contracts:
@@ -351,7 +349,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             "最終判断は親だけが記入",
         )
 
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
                 for field in required_fields:
@@ -371,8 +369,10 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn(field, template)
                 self._assert_qa_report_template_excludes_raw_fields(template)
 
-    def test_repository_qa_report_runs_after_cleanup_state_is_known(self) -> None:
-        """Record final cleanup outcomes before writing the optional report."""
+    def test_repository_writes_qa_report_after_cleanup_and_before_chat_report(
+        self,
+    ) -> None:
+        """Persist cleanup outcomes before sending the required chat report."""
         skills = self._repository_skill_texts()
         main_texts = (
             skills.source_main,
@@ -399,10 +399,10 @@ class BuildPluginAssetsRepositoryContractsTest(
 
         required_reference_contracts = (
             "最終 gate 後に cleanup の実施可否と結果を確定してから",
-            "条件付き report を生成",
+            "出力条件を満たす場合だけ report を生成",
             "`Needs revision` などで worktree を保持する場合も cleanup 状態と理由を記録",
         )
-        for path, report in self._repository_qa_report_texts().items():
+        for path, report in self._read_qa_report_references().items():
             with self.subTest(path=path):
                 normalized = "".join(report.split())
                 for contract in required_reference_contracts:
