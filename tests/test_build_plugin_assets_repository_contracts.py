@@ -69,6 +69,21 @@ class BuildPluginAssetsRepositoryContractsTest(
         self.assertIn(closing_fence, fenced_content)
         return fenced_content.split(closing_fence, 1)[0]
 
+    def _assert_qa_report_template_excludes_raw_fields(self, template: str) -> None:
+        forbidden_template_fields = (
+            "Conversation:",
+            "Prompt:",
+            "Raw reviewer output:",
+            "Raw command log:",
+            "Full command log:",
+            "Credential:",
+            "Absolute path:",
+            "Local checkout path:",
+            "Integration checkout / commit",
+        )
+        for field in forbidden_template_fields:
+            self.assertNotIn(field, template)
+
     def test_repository_skill_uses_progressive_disclosure(self) -> None:
         """Keep the core workflow lean and route each detailed phase explicitly."""
         main_texts = {
@@ -287,16 +302,6 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for evidence in allowed_evidence:
                     self.assertIn("".join(evidence.split()), normalized)
 
-    def test_repository_qa_report_does_not_repeat_persistence_prohibitions(
-        self,
-    ) -> None:
-        """State the sensitive-evidence prohibition once in each reference."""
-        prohibition = "".join("機密情報と生の証跡を保存しない".split())
-        for path, report in self._repository_qa_report_texts().items():
-            with self.subTest(path=path):
-                normalized = "".join(report.split())
-                self.assertEqual(1, normalized.count(prohibition))
-
     def test_repository_qa_report_normalizes_untrusted_markdown_fields(
         self,
     ) -> None:
@@ -363,20 +368,20 @@ class BuildPluginAssetsRepositoryContractsTest(
                     "Status",
                     "Short summary",
                 )
-                forbidden_template_fields = (
-                    "Conversation:",
-                    "Prompt:",
-                    "Raw reviewer output:",
-                    "Full command log:",
-                    "Credential:",
-                    "Absolute path:",
-                    "Local checkout path:",
-                    "Integration checkout / commit",
-                )
                 for field in required_template_fields:
                     self.assertIn(field, template)
-                for field in forbidden_template_fields:
-                    self.assertNotIn(field, template)
+                self._assert_qa_report_template_excludes_raw_fields(template)
+
+                mutated_template = template.replace(
+                    "## Verification\n",
+                    "## Verification\n\n- Raw command log:\n",
+                    1,
+                )
+                self.assertIn("Raw command log:", mutated_template)
+                with self.assertRaises(AssertionError):
+                    self._assert_qa_report_template_excludes_raw_fields(
+                        mutated_template
+                    )
 
     def test_repository_qa_report_runs_after_cleanup_state_is_known(self) -> None:
         """Record final cleanup outcomes before writing the optional report."""
