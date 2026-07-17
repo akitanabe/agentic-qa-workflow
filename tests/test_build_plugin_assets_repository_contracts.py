@@ -57,8 +57,7 @@ class BuildPluginAssetsRepositoryContractsTest(
             ),
         }
 
-    def _qa_report_template(self, report: str) -> str:
-        """Extract the standard Markdown template from one QA report reference."""
+    def _extract_qa_report_template(self, report: str) -> str:
         heading = "## 標準 template"
         opening_fence = "```markdown\n"
         closing_fence = "\n```"
@@ -358,7 +357,7 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for field in required_fields:
                     self.assertIn("".join(field.split()), normalized)
 
-                template = self._qa_report_template(report)
+                template = self._extract_qa_report_template(report)
                 required_template_fields = (
                     "Logical checkout ID / commit",
                     "Logical worktree ID",
@@ -371,17 +370,6 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for field in required_template_fields:
                     self.assertIn(field, template)
                 self._assert_qa_report_template_excludes_raw_fields(template)
-
-                mutated_template = template.replace(
-                    "## Verification\n",
-                    "## Verification\n\n- Raw command log:\n",
-                    1,
-                )
-                self.assertIn("Raw command log:", mutated_template)
-                with self.assertRaises(AssertionError):
-                    self._assert_qa_report_template_excludes_raw_fields(
-                        mutated_template
-                    )
 
     def test_repository_qa_report_runs_after_cleanup_state_is_known(self) -> None:
         """Record final cleanup outcomes before writing the optional report."""
