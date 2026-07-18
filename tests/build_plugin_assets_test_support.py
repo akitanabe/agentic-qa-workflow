@@ -23,7 +23,7 @@ AGENT_NAMES = (
     "expert-selection-reviewer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
-    "writing-principles-refactorer",
+    "writing-principles-reviewer",
     "security-side-effect-reviewer",
     "review-patch-refactorer",
 )
@@ -31,10 +31,10 @@ REVIEWER_NAMES = (
     "expert-selection-reviewer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
+    "writing-principles-reviewer",
     "security-side-effect-reviewer",
 )
 REFACTORER_NAMES = (
-    "writing-principles-refactorer",
     "review-patch-refactorer",
 )
 GENERATED_MARKDOWN_WARNING = "<!-- Generated from shared/. Do not edit directly. -->"
@@ -127,7 +127,7 @@ CODEX_MODEL_PROFILES = {
     "expert-selection-reviewer": ModelProfile("gpt-5.6-sol", "medium"),
     "responsibility-boundary-reviewer": ModelProfile("gpt-5.6-sol", "medium"),
     "test-quality-reviewer": ModelProfile("gpt-5.6-sol", "medium"),
-    "writing-principles-refactorer": ModelProfile("gpt-5.6-luna", "xhigh"),
+    "writing-principles-reviewer": ModelProfile("gpt-5.6-luna", "xhigh"),
     "security-side-effect-reviewer": ModelProfile("gpt-5.6-sol", "high"),
     "review-patch-refactorer": ModelProfile("gpt-5.6-luna", "high"),
 }
@@ -138,7 +138,7 @@ CLAUDE_MODEL_PROFILES = {
     "expert-selection-reviewer": ModelProfile("opus", "high"),
     "responsibility-boundary-reviewer": ModelProfile("opus", "high"),
     "test-quality-reviewer": ModelProfile("opus", "high"),
-    "writing-principles-refactorer": ModelProfile("sonnet", "high"),
+    "writing-principles-reviewer": ModelProfile("sonnet", "high"),
     "security-side-effect-reviewer": ModelProfile("fable", "high"),
     "review-patch-refactorer": ModelProfile("sonnet", "medium"),
 }
@@ -214,10 +214,22 @@ class IsolatedRepositorySupport:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8", newline="")
 
-    def _agent_source(self, name: str, *, sandbox_mode: str | None = None) -> str:
+    def _agent_source(
+        self,
+        name: str,
+        *,
+        sandbox_mode: str | None = None,
+        read_only_tools: bool = False,
+    ) -> str:
         """Return a hand-written common agent source with platform metadata."""
         sandbox_line = (
             f'sandbox_mode = "{sandbox_mode}"\n' if sandbox_mode is not None else ""
+        )
+        claude_tool_lines = (
+            'tools = ["Read", "Grep", "Glob"]\n'
+            'disallowed_tools = ["Bash", "Edit", "Write", "NotebookEdit"]\n'
+            if read_only_tools
+            else ""
         )
         return (
             "+++\n"
@@ -227,6 +239,7 @@ class IsolatedRepositorySupport:
             f'description = "Claude {name}"\n'
             'model = "sonnet"\n'
             'effort = "medium"\n'
+            f"{claude_tool_lines}"
             "\n"
             "[codex]\n"
             f'description = "Codex {name}"\n'
@@ -337,7 +350,11 @@ class IsolatedRepositorySupport:
             self._write(
                 root,
                 f"shared/agents/{name}.md",
-                self._agent_source(name, sandbox_mode=sandbox_mode),
+                self._agent_source(
+                    name,
+                    sandbox_mode=sandbox_mode,
+                    read_only_tools=name == "writing-principles-reviewer",
+                ),
             )
 
         manifests = (

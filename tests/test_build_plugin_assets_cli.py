@@ -474,8 +474,10 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
             )
             self.assertEqual(expected_body, metadata["developer_instructions"])
 
-    def test_build_handles_optional_codex_sandbox_mode(self) -> None:
-        """Emit sandbox_mode for reviewers and omit it for writable agents."""
+    def test_build_publishes_read_only_codex_reviewers_and_writable_refactorers(
+        self,
+    ) -> None:
+        """Publish reviewer sandboxes without restricting writable refactorers."""
         with self._temporary_repository() as root:
             result = self._run(root)
             self.assertEqual(0, result.returncode, result)
@@ -512,6 +514,29 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
                         ).read_text(encoding="utf-8")
                     )
                     self.assertNotIn("sandbox_mode", refactorer)
+
+    def test_build_emits_claude_read_only_tool_policy_for_writing_reviewer(
+        self,
+    ) -> None:
+        """Expose only read operations and explicitly reject file-changing tools."""
+        with self._temporary_repository() as root:
+            result = self._run(root)
+            self.assertEqual(0, result.returncode, result)
+
+            reviewer = (
+                root / "plugins/claude/agents/writing-principles-reviewer.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("tools: Read, Grep, Glob\n", reviewer)
+            self.assertIn(
+                "disallowedTools: Bash, Edit, Write, NotebookEdit\n",
+                reviewer,
+            )
+
+            refactorer = (
+                root / "plugins/claude/agents/review-patch-refactorer.md"
+            ).read_text(encoding="utf-8")
+            self.assertNotIn("tools:", refactorer)
+            self.assertNotIn("disallowedTools:", refactorer)
 
     def test_build_rejects_invalid_agent_frontmatter_without_writing(self) -> None:
         """Reject schema, type, name, delimiter, and placeholder violations atomically."""
@@ -579,6 +604,21 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
             "wrong sandbox type": lambda text: text.replace(
                 'model_reasoning_effort = "medium"\n',
                 'model_reasoning_effort = "medium"\nsandbox_mode = true\n',
+                1,
+            ),
+            "wrong Claude tools type": lambda text: text.replace(
+                'effort = "medium"\n',
+                'effort = "medium"\ntools = "Read"\n',
+                1,
+            ),
+            "wrong Claude tool element type": lambda text: text.replace(
+                'effort = "medium"\n',
+                'effort = "medium"\ntools = ["Read", 1]\n',
+                1,
+            ),
+            "wrong Claude disallowed tools type": lambda text: text.replace(
+                'effort = "medium"\n',
+                'effort = "medium"\ndisallowed_tools = "Write"\n',
                 1,
             ),
             "name does not match filename": lambda text: text.replace(

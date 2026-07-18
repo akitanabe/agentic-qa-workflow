@@ -10,6 +10,7 @@ from build_plugin_assets_test_support import (
     CLAUDE_MODEL_PROFILES,
     CLAUDE_PROFILE_PATH,
     CODEX_MODEL_PROFILES,
+    CODEX_PROFILE_PATH,
     DELEGATE_SKILL,
     GENERATED_MARKDOWN_WARNING,
     GENERATED_SKILL_REFERENCE_PATHS,
@@ -836,15 +837,65 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for term in focus_terms:
                     self.assertIn(term, source)
 
-    def test_repository_refactorers_define_writable_narrow_contracts(self) -> None:
-        """Allow only the two refactorers to apply their explicitly bounded patches."""
+    def test_repository_writing_principles_reviewer_defines_review_scope_and_finding_contract(
+        self,
+    ) -> None:
+        """Review writing artifacts and return actionable findings as structured data."""
+        source = self._repository_text(
+            Path("shared/agents/writing-principles-reviewer.md")
+        )
+        review_scope = (
+            "コード",
+            "変数名",
+            "関数名",
+            "テスト名",
+            "コメント",
+            "DocBlock",
+        )
+        finding_fields = (
+            "指摘ID",
+            "対象ファイルと該当箇所",
+            "違反している記述原則",
+            "問題である理由",
+            "外部から観測可能な振る舞いへの影響有無",
+            "局所的かつ振る舞いを変えず修正可能か",
+            "推奨する修正先",
+        )
+
+        for contract in review_scope + finding_fields:
+            self.assertIn(contract, source)
+        self.assertIn("自身はファイルを変更しない", source)
+
+    def test_repository_writing_principles_reviewer_platforms_reject_file_modification(
+        self,
+    ) -> None:
+        """Publish platform-enforced read-only settings with the reviewer definition."""
+        name = "writing-principles-reviewer"
+        source_metadata = self._agent_source_metadata(name)
+        claude_artifact = self._repository_text(CLAUDE_PROFILE_PATH / f"{name}.md")
+        codex_artifact = self._codex_agent_artifact_metadata(name)
+
+        self.assertEqual(
+            ["Read", "Grep", "Glob"],
+            source_metadata["claude"]["tools"],
+        )
+        self.assertEqual(
+            ["Bash", "Edit", "Write", "NotebookEdit"],
+            source_metadata["claude"]["disallowed_tools"],
+        )
+        self.assertIn("tools: Read, Grep, Glob\n", claude_artifact)
+        self.assertIn(
+            "disallowedTools: Bash, Edit, Write, NotebookEdit\n",
+            claude_artifact,
+        )
+        self.assertEqual("read-only", source_metadata["codex"]["sandbox_mode"])
+        self.assertEqual("read-only", codex_artifact["sandbox_mode"])
+
+    def test_repository_review_patch_refactorer_defines_writable_narrow_contract(
+        self,
+    ) -> None:
+        """Allow the patch refactorer to apply only its explicitly bounded patch."""
         expected_contracts = {
-            "writing-principles-refactorer": (
-                "How / What / Why / Why Not",
-                "自明または重複したコメントの削除",
-                "テストの期待値変更",
-                "既存コミットの rewrite は行いません",
-            ),
             "review-patch-refactorer": (
                 "専門 reviewer の具体的な指摘",
                 "Acceptance Criteria",
@@ -975,7 +1026,6 @@ class BuildPluginAssetsRepositoryContractsTest(
             REPOSITORY_ROOT / "tests",
         )
         retired_names = (
-            "writing-principles-" + "reviewer",
             "refactor-patch-" + "agent",
         )
 
@@ -986,6 +1036,22 @@ class BuildPluginAssetsRepositoryContractsTest(
                 content = file_path.read_text(encoding="utf-8")
                 for name in retired_names:
                     self.assertNotIn(name, content, file_path)
+
+    def test_repository_generated_agents_match_canonical_inventory(self) -> None:
+        """Publish the reviewer under its new name without retaining old agent assets."""
+        expected_claude = {f"{name}.md" for name in AGENT_NAMES}
+        expected_codex = {f"{name}.toml" for name in AGENT_NAMES}
+        actual_claude = {
+            path.name
+            for path in (REPOSITORY_ROOT / CLAUDE_PROFILE_PATH).glob("*.md")
+        }
+        actual_codex = {
+            path.name
+            for path in (REPOSITORY_ROOT / CODEX_PROFILE_PATH).glob("*.toml")
+        }
+
+        self.assertEqual(expected_claude, actual_claude)
+        self.assertEqual(expected_codex, actual_codex)
 
     def test_repository_workflows_select_delegation_modes_without_crossing_direct_boundary(
         self,
