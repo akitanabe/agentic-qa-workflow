@@ -98,7 +98,9 @@ reviewer は、指摘がある場合は指摘IDを含む構造化 Data を返す
 次の条件をすべて満たす場合に限り `review-patch-refactorer` を起動する。
 
 - 専門 reviewer（必須の `writing-principles-reviewer` を含む）の具体的な指摘が存在する。
+- 親が指摘を確認し、修正対象として採用している。
 - Acceptance Criteria は満たされている。
+- Acceptance Criteria を変更する必要がない。
 - 機能的なテストは green である。
 - 修正範囲が局所的である。
 - 仕様の再解釈を必要としない。
@@ -106,8 +108,32 @@ reviewer は、指摘がある場合は指摘IDを含む構造化 Data を返す
 - 振る舞いを維持したまま修正できる。
 - reviewer が修正方針または問題箇所を明示している。
 
+起動 prompt には少なくとも次の Data を含める。
+
+- 指摘元 reviewer、対象となる指摘ID、指摘本文
+- 親が採用した修正条件
+- 対象 worktree、branch、基準 commit、対象 commit 範囲
+- Acceptance Criteria
+- 変更を許可するファイルと変更を禁止するファイル
+- 削除・移動・新規作成の可否と commit の要否
+- 必須検証 command
+
+入力が不足する場合、`review-patch-refactorer` は推測で補わず、ファイルを変更せず親へ返す。
+
 `review-patch-refactorer` は指摘範囲だけを修正し、新しい問題を探索しない。仕様変更、ついで修正、
-大規模再設計、新規依存追加、通常実装の代行をさせない。
+大規模再設計、新規依存追加、通常実装の代行をさせない。親が個別に許可しない限り、ファイルの
+新規作成・削除・移動、指摘外のテストケース追加、fixture や helper の追加をさせない。
+
+返却後、親は自己申告だけを信用せず、次を再確認する。
+
+- `git -C <worktree> status --short`
+- 基準 commit からの変更ファイル一覧と diff
+- 許可範囲外の変更がないこと
+- ファイルの追加・削除・移動がないこと
+- reviewer 指摘外の変更がないこと
+- テストケース、期待値、skip 設定の変更がないこと
+- Acceptance Criteria と外部から観測可能な振る舞いが維持されていること
+- focused test と関連する全体検証が green であること
 
 次は元 Implementer へ差し戻す。
 
