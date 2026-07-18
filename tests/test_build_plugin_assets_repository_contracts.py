@@ -895,25 +895,34 @@ class BuildPluginAssetsRepositoryContractsTest(
         self,
     ) -> None:
         """Allow the patch refactorer to apply only its explicitly bounded patch."""
-        expected_contracts = {
-            "review-patch-refactorer": (
-                "専門 reviewer の具体的な指摘",
-                "Acceptance Criteria",
-                "指摘されていない箇所のついで修正",
-                "追加した修正コミット SHA",
-            ),
+        name = "review-patch-refactorer"
+        agent_texts = {
+            "shared": self._repository_text(Path("shared/agents") / f"{name}.md"),
+            "claude": self._repository_text(CLAUDE_PROFILE_PATH / f"{name}.md"),
+            "codex": self._repository_text(CODEX_PROFILE_PATH / f"{name}.toml"),
         }
+        required_contracts = (
+            "親が確認した reviewer の具体的な指摘",
+            "Acceptance Criteria は満たされている。",
+            "局所的で振る舞いを変えない修正",
+            "指摘されていない箇所のついで修正",
+            "追加した修正コミット SHA",
+        )
+        implementer_route = (
+            "テストケース追加、期待値の再検討、仕様判断、設計変更、振る舞い判断が"
+            "必要な場合はファイルを変更せず、元 Implementer への差し戻し"
+        )
+        metadata = self._agent_source_metadata(name)
+        artifact = self._codex_agent_artifact_metadata(name)
 
-        for name, contracts in expected_contracts.items():
-            with self.subTest(name=name):
-                source = self._repository_text(Path("shared/agents") / f"{name}.md")
-                metadata = self._agent_source_metadata(name)
-                artifact = self._codex_agent_artifact_metadata(name)
-
-                self.assertNotIn("sandbox_mode", metadata["codex"])
-                self.assertNotIn("sandbox_mode", artifact)
-                for contract in contracts:
-                    self.assertIn(contract, source)
+        self.assertNotIn("sandbox_mode", metadata["codex"])
+        self.assertNotIn("sandbox_mode", artifact)
+        for platform, agent in agent_texts.items():
+            with self.subTest(platform=platform):
+                normalized_agent = "".join(agent.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_agent)
+                self.assertIn("".join(implementer_route.split()), normalized_agent)
 
     def test_security_reviewer_is_defensive_and_detection_only(self) -> None:
         """Keep security review defensive, actionable, and inside its assigned scope."""
@@ -1034,6 +1043,9 @@ class BuildPluginAssetsRepositoryContractsTest(
         required_contracts = (
             "指摘ID",
             "構造化 Data",
+            "各指摘ID",
+            "修正先または不採用",
+            "判断を記録",
             "reviewer の指摘が0件",
             "すべての指摘が修正され、再確認を通過",
             "親が不採用とした指摘について、理由が記録",
@@ -1068,7 +1080,11 @@ class BuildPluginAssetsRepositoryContractsTest(
             "テスト失敗",
             "正常系・異常系・境界値不足",
             "振る舞い変更が必要",
+            "テストケース追加",
             "ケース追加や期待値の再検討が必要",
+            "仕様判断",
+            "設計変更",
+            "振る舞い判断",
             "`strict` mode の Red / Green / Refactor 継続",
         )
 
@@ -1080,6 +1096,30 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn("".join(condition.split()), normalized_workflow)
                 for route in implementer_routes:
                     self.assertIn("".join(route.split()), normalized_workflow)
+
+    def test_repository_writing_review_gate_rechecks_every_fix_before_acceptance(
+        self,
+    ) -> None:
+        """Return every fix route to parent QA and the mandatory review gate."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "`review-patch-refactorer` または元 Implementer による修正後",
+            "親が変更後の diff とテスト結果を確認",
+            "`writing-principles-reviewer` を再実行",
+            "再確認を通過",
+            "枝を受け入れない",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
 
     def test_repository_distribution_does_not_reference_retired_agent_names(self) -> None:
         """Remove retired names from every distributed source and generated surface."""

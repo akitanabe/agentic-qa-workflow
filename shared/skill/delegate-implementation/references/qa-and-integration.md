@@ -76,13 +76,14 @@ reviewer は最終的な受け入れ判断を行わない。親が diff、テス
 
 reviewer は、指摘がある場合は指摘IDを含む構造化 Data を返す。
 `no-change` は reviewer の指摘が0件である正常なゲート通過結果として扱う。
-指摘がある場合、親は内容を確認して次の修正先または不採用を判断する。
+指摘がある場合、親は各指摘IDについて内容を確認し、修正先または不採用を判断して、その判断を記録する。
 
 - 局所的で振る舞いを変えない修正は `review-patch-refactorer` へ渡す。
-- テストケース追加、期待値の再検討、仕様判断、設計変更が必要な修正は元 Implementer へ差し戻す。
+- テストケース追加、期待値の再検討、仕様判断、設計変更、振る舞い判断が必要な修正は元 Implementer へ差し戻す。
 - 指摘を採用しない場合は、親が指摘IDと不採用理由を記録する。
 
-`review-patch-refactorer` による修正後は、親が変更後の diff とテスト結果を確認し、
+`review-patch-refactorer` による修正後の親QAと reviewer 再確認は、元 Implementer による修正にも適用する。
+`review-patch-refactorer` または元 Implementer による修正後は、親が変更後の diff とテスト結果を確認し、
 `writing-principles-reviewer` を再実行する。
 
 指摘がある場合は、次のいずれかになるまで枝を受け入れない。
