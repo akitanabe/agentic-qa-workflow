@@ -1099,6 +1099,8 @@ class BuildPluginAssetsRepositoryContractsTest(
             "mutation は親が明示した一時検証に限定",
             "mutation を commit してはならない",
             "変更禁止範囲や本番 code を mutation の対象にしてはならない",
+            "regression Green 例外の Red 段階では passing test を commit",
+            "変更がない Green / Refactor 段階に空 commit を作らない",
         )
         qa_contracts = (
             "AC、test、期待値の根拠、既存挙動の対応",

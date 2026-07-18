@@ -39,7 +39,11 @@
    error handling、resource 解放、concurrency、security を確認する。
 1. **振る舞い** — test が private API や実装手順ではなく、外部から観測可能な振る舞いを検証しているか。
 2. **網羅性** — AC、境界値、異常系、例外経路、分岐、期待値の根拠が実際の test と一致するか。
-3. **TDD** — Red 出力または段階 commit を確認し、test を実装へ合わせて弱めていないか。
+3. **TDD** — 新機能または未実装仕様なら Red 出力または段階 commit を確認し、test を実装へ合わせて
+   弱めていないか。既存挙動を固定する regression test が追加時点で Green なら、親は AC、test、期待値の
+   根拠、既存挙動の対応を実際の test と実装から確認し、既存実装がすでに仕様を満たすという返却根拠が
+   妥当か判断する。形式的な Red のための本番 code 変更がなく、mutation を使った場合は親が明示した
+   一時検証だけで、commit、変更禁止範囲、本番 code に接触していないことも確認する。
 4. **記述原則** — Code=How、test=What、commit=Why、comment=Why Not の配置になっているか。
 5. **親の実行** — focused test と関連する全体検証を親が実行し、green を確認する。
 
