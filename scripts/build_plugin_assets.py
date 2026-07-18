@@ -15,12 +15,22 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORMS = ("claude", "codex")
-SKILL_REFERENCE_NAMES = (
-    "implementation-branches.md",
-    "expert-selection.md",
-    "qa-and-integration.md",
-    "qa-report.md",
-)
+# Skill name -> ordered reference names. Adding one entry makes a new skill
+# directory a generation target; an empty tuple describes a SKILL.md-only skill.
+SKILL_REFERENCE_NAMES = {
+    "delegate-implementation": (
+        "implementation-branches.md",
+        "expert-selection.md",
+        "qa-and-integration.md",
+        "qa-report.md",
+        "branch-plan-intake.md",
+    ),
+    "plan-implementation-branches": (
+        "branch-plan-schema.md",
+        "branch-splitting.md",
+        "plan-review.md",
+    ),
+}
 AGENT_NAMES = (
     "implementer",
     "senior-implementer",
@@ -78,6 +88,16 @@ class AgentSource:
     codex: dict[str, Any]
     body: str
     body_line: int
+
+
+@dataclass(frozen=True)
+class SkillSource:
+    """Hold one skill's SKILL.md and its mapped reference sources."""
+
+    name: str
+    path: Path
+    content: str | None
+    references: dict[str, tuple[Path, str]]
 
 
 def parse_arguments(argv: list[str]) -> argparse.Namespace:
@@ -331,33 +351,41 @@ def load_agents(root: Path, errors: list[Diagnostic]) -> list[AgentSource]:
     return agents
 
 
-def load_skill_references(
-    root: Path,
-    errors: list[Diagnostic],
-) -> dict[str, tuple[Path, str]]:
-    """Load the fixed set of reference Markdown files for the delegated workflow."""
-    skill_directory = root / "shared/skill/delegate-implementation"
-    if skill_directory.is_dir():
-        for path in sorted(skill_directory.glob("*.md")):
-            if path.name != "SKILL.md":
-                errors.append(Diagnostic(path, "unknown shared skill Markdown file"))
+def load_skills(root: Path, errors: list[Diagnostic]) -> list[SkillSource]:
+    """Reject unregistered skill directories and load every mapped skill source."""
+    skill_root = root / "shared/skill"
+    if skill_root.is_dir():
+        for path in sorted(skill_root.iterdir()):
+            if path.is_dir() and path.name not in SKILL_REFERENCE_NAMES:
+                errors.append(Diagnostic(path, "unknown shared skill directory"))
 
-    directory = skill_directory / "references"
-    if directory.is_dir():
-        expected = set(SKILL_REFERENCE_NAMES)
-        for path in sorted(directory.glob("*.md")):
-            if path.name not in expected:
-                errors.append(
-                    Diagnostic(path, "unknown shared skill reference Markdown file")
-                )
+    skills: list[SkillSource] = []
+    for skill_name, reference_names in SKILL_REFERENCE_NAMES.items():
+        skill_directory = skill_root / skill_name
+        if skill_directory.is_dir():
+            for path in sorted(skill_directory.glob("*.md")):
+                if path.name != "SKILL.md":
+                    errors.append(Diagnostic(path, "unknown shared skill Markdown file"))
 
-    references: dict[str, tuple[Path, str]] = {}
-    for name in SKILL_REFERENCE_NAMES:
-        path = directory / name
-        content = read_source(path, errors)
-        if content is not None:
-            references[name] = (path, content)
-    return references
+        references_directory = skill_directory / "references"
+        if references_directory.is_dir():
+            expected = set(reference_names)
+            for path in sorted(references_directory.glob("*.md")):
+                if path.name not in expected:
+                    errors.append(
+                        Diagnostic(path, "unknown shared skill reference Markdown file")
+                    )
+
+        skill_path = skill_directory / "SKILL.md"
+        content = read_source(skill_path, errors)
+        references: dict[str, tuple[Path, str]] = {}
+        for name in reference_names:
+            reference_path = references_directory / name
+            reference_content = read_source(reference_path, errors)
+            if reference_content is not None:
+                references[name] = (reference_path, reference_content)
+        skills.append(SkillSource(skill_name, skill_path, content, references))
+    return skills
 
 
 def process_markers(
@@ -550,19 +578,19 @@ def build_outputs(root: Path) -> tuple[dict[Path, str], list[Diagnostic]]:
     version = load_version(root, errors)
     terms = load_terms(root, errors)
     agents = load_agents(root, errors)
+    skills = load_skills(root, errors)
 
-    skill_path = root / "shared/skill/delegate-implementation/SKILL.md"
-    skill_source = read_source(skill_path, errors)
-    skill_references = load_skill_references(root, errors)
-    skill_rendered: dict[str, str] = {}
-    reference_rendered: dict[str, dict[str, str]] = {}
+    skill_rendered: dict[str, dict[str, str]] = {}
+    reference_rendered: dict[str, dict[str, dict[str, str]]] = {}
     used_terms: set[str] = set()
-    if skill_source is not None:
-        validate_placeholders(skill_path, skill_source, 1, terms, used_terms, errors)
-        skill_rendered = process_markers(skill_path, skill_source, 1, errors)
-    for name, (path, content) in skill_references.items():
-        validate_placeholders(path, content, 1, terms, used_terms, errors)
-        reference_rendered[name] = process_markers(path, content, 1, errors)
+    for skill in skills:
+        if skill.content is not None:
+            validate_placeholders(skill.path, skill.content, 1, terms, used_terms, errors)
+            skill_rendered[skill.name] = process_markers(skill.path, skill.content, 1, errors)
+        reference_rendered[skill.name] = {}
+        for name, (path, content) in skill.references.items():
+            validate_placeholders(path, content, 1, terms, used_terms, errors)
+            reference_rendered[skill.name][name] = process_markers(path, content, 1, errors)
 
     rendered_agent_bodies: dict[str, dict[str, str]] = {}
     for agent in agents:
@@ -596,30 +624,30 @@ def build_outputs(root: Path) -> tuple[dict[Path, str], list[Diagnostic]]:
 
     outputs: dict[Path, str] = {}
     for platform in PLATFORMS:
-        replaced = replace_terms(skill_rendered[platform], platform, terms)
-        rendered = render_skill(skill_path, platform, replaced, errors)
-        if rendered is not None:
-            outputs[
-                root / f"plugins/{platform}/skills/delegate-implementation/SKILL.md"
-            ] = rendered
-        for name in SKILL_REFERENCE_NAMES:
-            path, _ = skill_references[name]
-            replaced_reference = replace_terms(
-                reference_rendered[name][platform],
-                platform,
-                terms,
-            )
-            rendered_reference = render_skill_reference(
-                path,
-                platform,
-                replaced_reference,
-                errors,
-            )
-            if rendered_reference is not None:
+        for skill in skills:
+            replaced = replace_terms(skill_rendered[skill.name][platform], platform, terms)
+            rendered = render_skill(skill.path, platform, replaced, errors)
+            if rendered is not None:
                 outputs[
-                    root
-                    / f"plugins/{platform}/skills/delegate-implementation/references/{name}"
-                ] = rendered_reference
+                    root / f"plugins/{platform}/skills/{skill.name}/SKILL.md"
+                ] = rendered
+            for name, (path, _) in skill.references.items():
+                replaced_reference = replace_terms(
+                    reference_rendered[skill.name][name][platform],
+                    platform,
+                    terms,
+                )
+                rendered_reference = render_skill_reference(
+                    path,
+                    platform,
+                    replaced_reference,
+                    errors,
+                )
+                if rendered_reference is not None:
+                    outputs[
+                        root
+                        / f"plugins/{platform}/skills/{skill.name}/references/{name}"
+                    ] = rendered_reference
 
     for agent in agents:
         bodies = rendered_agent_bodies[agent.name]

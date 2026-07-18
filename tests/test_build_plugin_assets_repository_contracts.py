@@ -10,6 +10,7 @@ from build_plugin_assets_test_support import (
     CLAUDE_MODEL_PROFILES,
     CLAUDE_PROFILE_PATH,
     CODEX_MODEL_PROFILES,
+    DELEGATE_SKILL,
     GENERATED_MARKDOWN_WARNING,
     GENERATED_SKILL_REFERENCE_PATHS,
     GENERATED_SKILL_PATHS,
@@ -18,6 +19,20 @@ from build_plugin_assets_test_support import (
     SHARED_SKILL_PATH,
     SHARED_SKILL_REFERENCE_PATHS,
     SKILL_REFERENCE_NAMES,
+    generated_skill_path,
+    generated_skill_reference_path,
+    shared_skill_path,
+    shared_skill_reference_path,
+)
+
+
+PLAN_SKILL = "plan-implementation-branches"
+# 契約が要求する reference 構成をテスト側で明示的に宣言する。生成 mapping への
+# 依存を避け、原稿が未整備の状態を「必要ファイルの欠落」として検出させる。
+PLAN_REFERENCE_NAMES = (
+    "branch-plan-schema.md",
+    "branch-splitting.md",
+    "plan-review.md",
 )
 
 
@@ -102,7 +117,7 @@ class BuildPluginAssetsRepositoryContractsTest(
         for path, main in main_texts.items():
             with self.subTest(path=path):
                 self.assertLess(len(main.splitlines()), 300)
-                for name in SKILL_REFERENCE_NAMES:
+                for name in SKILL_REFERENCE_NAMES[DELEGATE_SKILL]:
                     self.assertIn(f"(references/{name})", main)
                 for heading in reference_headings.values():
                     self.assertNotIn(heading, main)
@@ -1080,6 +1095,256 @@ class BuildPluginAssetsRepositoryContractsTest(
             with self.subTest(name=name):
                 self.assertIn(f"agents/{name}.md", claude_readme)
                 self.assertIn(f"`{name}`", codex_readme)
+
+
+class PlanImplementationBranchesContractsTest(
+    RepositoryContractSupport,
+    unittest.TestCase,
+):
+    def _plan_skill_texts(self) -> dict[str, str]:
+        return {
+            "source": self._repository_text(shared_skill_path(PLAN_SKILL)),
+            "claude": self._repository_text(
+                generated_skill_path("claude", PLAN_SKILL)
+            ),
+            "codex": self._repository_text(
+                generated_skill_path("codex", PLAN_SKILL)
+            ),
+        }
+
+    def _plan_reference_texts(self, name: str) -> dict[str, str]:
+        return {
+            "source": self._repository_text(
+                shared_skill_reference_path(PLAN_SKILL, name)
+            ),
+            "claude": self._repository_text(
+                generated_skill_reference_path("claude", PLAN_SKILL, name)
+            ),
+            "codex": self._repository_text(
+                generated_skill_reference_path("codex", PLAN_SKILL, name)
+            ),
+        }
+
+    def test_plan_skill_exposes_platform_frontmatter_and_reference_links(
+        self,
+    ) -> None:
+        """Expose planning frontmatter and route each detail to its reference."""
+        for platform in ("claude", "codex"):
+            main = self._plan_skill_texts()[platform]
+            with self.subTest(platform=platform):
+                self.assertTrue(main.startswith(f"---\nname: {PLAN_SKILL}\n"))
+                self.assertLess(len(main.splitlines()), 300)
+                for name in PLAN_REFERENCE_NAMES:
+                    self.assertIn(f"(references/{name})", main)
+                self.assertNotIn("<!-- claude-only", main)
+                self.assertNotIn("<!-- codex-only", main)
+
+    def test_plan_references_carry_generated_warning_and_table_of_contents(
+        self,
+    ) -> None:
+        """Give each planning reference a warning-free source and a table of contents."""
+        for name in PLAN_REFERENCE_NAMES:
+            texts = self._plan_reference_texts(name)
+            with self.subTest(reference=name):
+                self.assertFalse(
+                    texts["source"].startswith(GENERATED_MARKDOWN_WARNING)
+                )
+                self.assertTrue(texts["source"].startswith("# "))
+                self.assertIn("## 目次", texts["source"])
+                for platform in ("claude", "codex"):
+                    reference = texts[platform]
+                    self.assertTrue(
+                        reference.startswith(f"{GENERATED_MARKDOWN_WARNING}\n\n")
+                    )
+                    self.assertIn("## 目次", reference)
+
+    def test_plan_schema_reference_holds_the_canonical_schema(self) -> None:
+        """Carry the confirmed schema, violation codes, transitions, and tests meaning."""
+        required = (
+            "status: blocked | awaiting_review | approved",
+            "confirmation_mode: review | auto",
+            "delegation:",
+            "authorized: false",
+            "| code | 検査内容 |",
+            "duplicate-id",
+            "unknown-reference",
+            "branch-without-primary-ac",
+            "delegation-invalid",
+            "mode-proposal-invalid",
+            "## 状態遷移と権限",
+            "## tests / stage_tests の意味",
+        )
+        excluded = (
+            "## implementation_stages の実行規約",
+            "## Executor 側の再検証",
+            "## レビュー指摘への対応",
+            "## 再レビュー指摘への対応",
+            "## issue #46 確定事項からの意図的な変更",
+        )
+        for platform, text in self._plan_reference_texts(
+            "branch-plan-schema.md"
+        ).items():
+            with self.subTest(platform=platform):
+                normalized = "".join(text.split())
+                for contract in required:
+                    self.assertIn("".join(contract.split()), normalized)
+                for section in excluded:
+                    self.assertNotIn("".join(section.split()), normalized)
+
+    def test_plan_skill_matches_confirmed_schema_contract(self) -> None:
+        """Separate approval from delegation and never start delegation from the skill."""
+        required = (
+            "承認と委譲開始権限は独立",
+            "`delegation.authorized` は常に `false`",
+            "確認モードの既定は `review`",
+            "`auto` はユーザーが明示した場合のみ",
+            "`delegate-implementation` を直接起動しない",
+            "blocking な不足は `unresolved_decisions`",
+            "minor な不足は `assumptions`",
+        )
+        for platform, main in self._plan_skill_texts().items():
+            with self.subTest(platform=platform):
+                normalized = "".join(main.split())
+                for contract in required:
+                    self.assertIn("".join(contract.split()), normalized)
+
+
+INTAKE_REFERENCE = "branch-plan-intake.md"
+PLAN_SCHEMA_REFERENCE = "branch-plan-schema.md"
+
+
+class DelegateImplementationIntakeContractsTest(
+    RepositoryContractSupport,
+    unittest.TestCase,
+):
+    def _assert_intake_reference_files_exist(self) -> None:
+        paths = (
+            shared_skill_reference_path(DELEGATE_SKILL, INTAKE_REFERENCE),
+            generated_skill_reference_path("claude", DELEGATE_SKILL, INTAKE_REFERENCE),
+            generated_skill_reference_path("codex", DELEGATE_SKILL, INTAKE_REFERENCE),
+        )
+        for path in paths:
+            self.assertTrue(
+                (REPOSITORY_ROOT / path).is_file(),
+                f"missing intake reference: {path}",
+            )
+
+    def _intake_reference_texts(self) -> dict[str, str]:
+        self._assert_intake_reference_files_exist()
+        return {
+            "source": self._repository_text(
+                shared_skill_reference_path(DELEGATE_SKILL, INTAKE_REFERENCE)
+            ),
+            "claude": self._repository_text(
+                generated_skill_reference_path(
+                    "claude", DELEGATE_SKILL, INTAKE_REFERENCE
+                )
+            ),
+            "codex": self._repository_text(
+                generated_skill_reference_path(
+                    "codex", DELEGATE_SKILL, INTAKE_REFERENCE
+                )
+            ),
+        }
+
+    def _delegate_skill_texts(self) -> dict[str, str]:
+        return {
+            "source": self._repository_text(shared_skill_path(DELEGATE_SKILL)),
+            "claude": self._repository_text(
+                generated_skill_path("claude", DELEGATE_SKILL)
+            ),
+            "codex": self._repository_text(
+                generated_skill_path("codex", DELEGATE_SKILL)
+            ),
+        }
+
+    def test_intake_reference_is_generated_with_warning_and_toc(self) -> None:
+        """Distribute the intake reference to both platforms with a warning-free source."""
+        texts = self._intake_reference_texts()
+        self.assertTrue(texts["source"].startswith("# "))
+        self.assertFalse(texts["source"].startswith(GENERATED_MARKDOWN_WARNING))
+        self.assertIn("## 目次", texts["source"])
+        for platform in ("claude", "codex"):
+            reference = texts[platform]
+            with self.subTest(platform=platform):
+                self.assertTrue(
+                    reference.startswith(f"{GENERATED_MARKDOWN_WARNING}\n\n")
+                )
+                self.assertIn("## 目次", reference)
+
+    def test_delegate_skill_links_to_the_intake_reference(self) -> None:
+        """Route a confirmed Branch Plan through the intake reference from SKILL.md."""
+        for platform, main in self._delegate_skill_texts().items():
+            with self.subTest(platform=platform):
+                self.assertIn(f"(references/{INTAKE_REFERENCE})", main)
+                self.assertLess(len(main.splitlines()), 300)
+                normalized = "".join(main.split())
+                self.assertIn(
+                    "".join("確定済み Branch Plan が渡されている場合は".split()),
+                    normalized,
+                )
+
+    def test_intake_reference_moves_execution_and_revalidation_sections(self) -> None:
+        """Carry the execution and revalidation sections as the canonical source."""
+        moved_sections = (
+            "## implementation_stages の実行規約",
+            "## Executor 側の再検証",
+        )
+        moved_body = (
+            "stages を宣言した枝は `strict` の段階ゲート機構で実行する。",
+            "各 stage を `strict` の1サイクル(テスト計画 → Red → Green → Refactor)"
+            "として実行する。",
+            "`status: approved` であり、`approval.method` が設定済みである。",
+            "blocking violation code 表のすべての検査規則を入力 Data から再計算し、"
+            "違反が0件である。",
+        )
+        for platform, text in self._intake_reference_texts().items():
+            with self.subTest(platform=platform):
+                for section in moved_sections:
+                    self.assertIn(section, text)
+                normalized = "".join(text.split())
+                for body in moved_body:
+                    self.assertIn("".join(body.split()), normalized)
+
+    def test_intake_reference_declares_the_acceptance_gate_rules(self) -> None:
+        """Re-validate before delegation and fall back to inline splitting otherwise."""
+        gate_rules = (
+            "「Executor 側の再検証」の4項目を委譲開始前に",
+            "再検証を満たさない場合は実装を開始せず",
+            "既存の委譲 prompt の Data へそのまま流し込む",
+            "委譲 prompt の必須テストと検証 command で",
+            "Branch Plan が渡されていない場合は、現行どおり親が inline に枝を分ける。",
+            "`plan-implementation-branches` の使用を",
+        )
+        for platform, text in self._intake_reference_texts().items():
+            with self.subTest(platform=platform):
+                normalized = "".join(text.split())
+                for rule in gate_rules:
+                    self.assertIn("".join(rule.split()), normalized)
+
+    def test_intake_reference_resolves_the_cross_skill_schema_link(self) -> None:
+        """Resolve the schema code table link across shared and generated trees."""
+        relative_link = (
+            "../../plan-implementation-branches/references/branch-plan-schema.md"
+        )
+        intake_paths = {
+            "source": shared_skill_reference_path(DELEGATE_SKILL, INTAKE_REFERENCE),
+            "claude": generated_skill_reference_path(
+                "claude", DELEGATE_SKILL, INTAKE_REFERENCE
+            ),
+            "codex": generated_skill_reference_path(
+                "codex", DELEGATE_SKILL, INTAKE_REFERENCE
+            ),
+        }
+        texts = self._intake_reference_texts()
+        for structure, intake_path in intake_paths.items():
+            with self.subTest(structure=structure):
+                self.assertIn(relative_link, texts[structure])
+                resolved = (REPOSITORY_ROOT / intake_path).parent / relative_link
+                self.assertTrue(
+                    resolved.resolve().is_file(),
+                    f"unresolved cross-skill link from {intake_path}",
+                )
 
 
 if __name__ == "__main__":

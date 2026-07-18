@@ -10,15 +10,21 @@ import unittest
 
 from build_plugin_assets_test_support import (
     AGENT_NAMES,
+    DELEGATE_SKILL,
     GENERATED_SKILL_REFERENCE_PATHS,
     GENERATED_MARKDOWN_WARNING,
     GENERATED_TOML_WARNING,
     IsolatedRepositorySupport,
+    PLATFORMS,
     REFACTORER_NAMES,
     REVIEWER_NAMES,
     SHARED_SKILL_PATH,
     SHARED_SKILL_REFERENCE_PATHS,
     SKILL_REFERENCE_NAMES,
+    generated_skill_path,
+    generated_skill_reference_path,
+    shared_skill_path,
+    shared_skill_reference_path,
 )
 
 
@@ -78,7 +84,7 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
 
             self.assertEqual(0, result.returncode, result)
             self.assertEqual("", result.stderr)
-            for name in SKILL_REFERENCE_NAMES:
+            for name in SKILL_REFERENCE_NAMES[DELEGATE_SKILL]:
                 claude = (
                     root / GENERATED_SKILL_REFERENCE_PATHS["claude"][name]
                 ).read_text(encoding="utf-8")
@@ -108,6 +114,130 @@ class BuildPluginAssetsCliTest(IsolatedRepositorySupport, unittest.TestCase):
                 self.assertNotIn("<!-- codex-only", claude + codex)
                 self.assertTrue(claude.endswith("\n"))
                 self.assertTrue(codex.endswith("\n"))
+
+    def test_build_generates_every_registered_skill(self) -> None:
+        """Generate SKILL.md and references for each mapping entry on both platforms."""
+        extra = {"secondary-workflow": ("alpha.md", "beta.md")}
+        with self._temporary_repository(extra_skills=extra) as root:
+            result = self._run(root)
+
+            self.assertEqual(0, result.returncode, result)
+            self.assertEqual("", result.stderr)
+            for platform in PLATFORMS:
+                skill = root / generated_skill_path(platform, "secondary-workflow")
+                self.assertTrue(skill.is_file(), skill)
+                for name in extra["secondary-workflow"]:
+                    reference = root / generated_skill_reference_path(
+                        platform, "secondary-workflow", name
+                    )
+                    self.assertTrue(reference.is_file(), reference)
+                    self.assertTrue(
+                        reference.read_text(encoding="utf-8").startswith(
+                            f"{GENERATED_MARKDOWN_WARNING}\n\n"
+                        )
+                    )
+                self.assertTrue(
+                    (root / generated_skill_path(platform, DELEGATE_SKILL)).is_file()
+                )
+
+    def test_build_generates_skill_without_references(self) -> None:
+        """Emit only SKILL.md for a registered skill that maps to no references."""
+        extra = {"reference-free": ()}
+        with self._temporary_repository(extra_skills=extra) as root:
+            result = self._run(root)
+
+            self.assertEqual(0, result.returncode, result)
+            self.assertEqual("", result.stderr)
+            for platform in PLATFORMS:
+                self.assertTrue(
+                    (root / generated_skill_path(platform, "reference-free")).is_file()
+                )
+                self.assertFalse(
+                    (
+                        root / f"plugins/{platform}/skills/reference-free/references"
+                    ).exists()
+                )
+
+    def test_build_rejects_unknown_skill_directory(self) -> None:
+        """Reject a skill directory that no mapping entry registers."""
+        with self._temporary_repository() as root:
+            self._write(
+                root,
+                "shared/skill/unregistered/SKILL.md",
+                "---\nname: unregistered\ndescription: x\n---\n\n# body\n",
+            )
+            before = self._snapshot(self._generated_paths(root))
+
+            self._assert_validation_error(
+                root,
+                ("shared/skill/unregistered",),
+                before,
+            )
+
+    def test_build_requires_and_bounds_every_registered_skill_source(self) -> None:
+        """Require each mapped source and reject unknown Markdown for every skill."""
+        extra = {"secondary-workflow": ("alpha.md",)}
+
+        def remove_skill(root: Path) -> str:
+            path = shared_skill_path("secondary-workflow")
+            (root / path).unlink()
+            return path.as_posix()
+
+        def remove_reference(root: Path) -> str:
+            path = shared_skill_reference_path("secondary-workflow", "alpha.md")
+            (root / path).unlink()
+            return path.as_posix()
+
+        def add_unknown_markdown(root: Path) -> str:
+            path = "shared/skill/secondary-workflow/notes.md"
+            self._write(root, path, "# stray\n")
+            return path
+
+        def add_unknown_reference(root: Path) -> str:
+            path = "shared/skill/secondary-workflow/references/stray.md"
+            self._write(root, path, "# stray\n")
+            return path
+
+        for label, mutate in {
+            "missing SKILL.md": remove_skill,
+            "missing reference": remove_reference,
+            "unknown skill Markdown": add_unknown_markdown,
+            "unknown reference Markdown": add_unknown_reference,
+        }.items():
+            with (
+                self.subTest(label=label),
+                self._temporary_repository(extra_skills=extra) as root,
+            ):
+                expected_path = mutate(root)
+                before = self._snapshot(self._generated_paths(root, extra_skills=extra))
+
+                self._assert_validation_error(root, (expected_path,), before)
+
+    def test_check_detects_stale_output_for_each_registered_skill(self) -> None:
+        """Report one registered skill's stale artifact while leaving others intact."""
+        extra = {"secondary-workflow": ("alpha.md",)}
+        with self._temporary_repository(extra_skills=extra) as root:
+            build = self._run(root)
+            self.assertEqual(0, build.returncode, build)
+
+            stale = root / generated_skill_reference_path(
+                "claude", "secondary-workflow", "alpha.md"
+            )
+            stale.write_text("stale\n", encoding="utf-8", newline="")
+            paths = self._generated_paths(root, extra_skills=extra)
+            before = self._snapshot(paths)
+
+            result = self._run(root, "--check")
+
+            self.assertEqual(1, result.returncode, result)
+            self.assertEqual("", result.stdout)
+            self.assertIn(
+                generated_skill_reference_path(
+                    "claude", "secondary-workflow", "alpha.md"
+                ).as_posix(),
+                result.stderr,
+            )
+            self.assertEqual(before, self._snapshot(paths))
 
     def test_build_accepts_whitespace_around_marker_lines(self) -> None:
         """Treat a marker as valid after stripping leading and trailing whitespace."""

@@ -25,6 +25,7 @@
       "Write"
     ],
     "defaultPrompt": [
+      "Use $plan-implementation-branches to normalize a plan into a delegatable Branch Plan without starting delegation.",
       "Use $delegate-implementation to delegate this implementation with parent QA.",
       "Use $install-custom-agents to check, install, or update the bundled custom agents."
     ]
