@@ -1,7 +1,10 @@
 # Branch Plan 正規スキーマ案
 
-> 正本は `shared/skill/plan-implementation-branches/references/branch-plan-schema.md` へ移行済み。
-> 本ファイルは設計経緯の記録である。
+> 正本は2箇所に分かれている。スキーマ本体(status・violation code・状態遷移)は
+> `shared/skill/plan-implementation-branches/references/branch-plan-schema.md`、
+> implementation_stages の実行規約と Executor 側の再検証は
+> `shared/skill/delegate-implementation/references/branch-plan-intake.md` が正本である。
+> 本ファイルは設計経緯の記録であり、以下のセクションは経緯として残す。
 
 `plan-implementation-branches` Skill の出力であり、`delegate-implementation` への入力となる
 Branch Plan の正規スキーマ案を定義する。設計の経緯と確定事項は
