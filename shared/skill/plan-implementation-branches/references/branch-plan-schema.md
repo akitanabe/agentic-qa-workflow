@@ -189,9 +189,8 @@ planning Skill と Executor は同じ検査規則を使う。Executor は planni
 | `true` | `user` | `lite` / `standard` / `strict` |
 
 `branch-contract-violation` は機械検査ではなく planning Skill と Executor の判定で生成する。
-旧 `self_assessment` の `independently_reviewable`、`rollback_scope_isolated`、
-`forbidden_scope_clear` はこの code と `scope-conflict` に置き換わり、`false` のまま承認へ進む
-経路を持たない。
+実装枝契約に関わる判定(単独 review 可能性、revert 範囲の隔離、禁止範囲の明確さ)はこの code と
+`scope-conflict` で表現し、`false` のまま承認へ進む経路を持たない。
 
 ## 状態遷移と権限
 

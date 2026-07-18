@@ -1208,8 +1208,8 @@ class PlanImplementationBranchesContractsTest(
                 for contract in required:
                     self.assertIn("".join(contract.split()), normalized)
 
-    def test_docs_branch_plan_schema_points_to_the_canonical_reference(self) -> None:
-        """Redirect the design record to the canonical reference without deleting it."""
+    def test_docs_branch_plan_schema_is_a_complete_specification(self) -> None:
+        """Keep docs as a full schema specification without design-history sections."""
         docs = self._repository_text(Path("docs/branch-plan-schema.md"))
         self.assertIn(
             "shared/skill/plan-implementation-branches/references/"
@@ -1217,8 +1217,26 @@ class PlanImplementationBranchesContractsTest(
             docs,
         )
         self.assertIn("正本", docs)
-        self.assertIn("## レビュー指摘への対応", docs)
-        self.assertIn("## implementation_stages の実行規約", docs)
+        required_sections = (
+            "## 設計方針",
+            "## スキーマ本体",
+            "## blocking violation code",
+            "## 状態遷移と権限",
+            "## implementation_stages の実行規約",
+            "## tests / stage_tests の意味",
+            "## Executor 側の再検証",
+            "## 現行契約との整合",
+        )
+        for section in required_sections:
+            self.assertIn(section, docs)
+        history_sections = (
+            "## レビュー指摘への対応",
+            "## 再レビュー指摘への対応",
+            "## issue #46 確定事項からの意図的な変更",
+            "スキーマ案",
+        )
+        for section in history_sections:
+            self.assertNotIn(section, docs)
 
 
 INTAKE_REFERENCE = "branch-plan-intake.md"
