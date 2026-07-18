@@ -1082,6 +1082,99 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for rule in required_rules:
                     self.assertIn("".join(rule.split()), normalized_workflow)
 
+    def test_repository_workflows_limit_green_red_evidence_to_regression_tests(
+        self,
+    ) -> None:
+        skills = self._repository_skill_texts()
+        implementation_contracts = (
+            "新機能または未実装仕様を検証する test は Red 必須",
+            "既存挙動を固定する regression test",
+            "追加時点で Green",
+            "既存挙動を固定する追補 test であること",
+            "対応する AC",
+            "期待値の根拠",
+            "既存実装がすでに仕様を満たしていたこと",
+            "形式的な Red を作るために本番 code を一時変更してはならない",
+            "mutation は親が明示した一時検証に限定",
+            "mutation を commit してはならない",
+            "変更禁止範囲や本番 code を mutation の対象にしてはならない",
+            "regression Green 例外の Red 段階では passing test を commit",
+            "変更がない Green / Refactor 段階に空 commit を作らない",
+        )
+        qa_contracts = (
+            "AC、test、期待値の根拠、既存挙動の対応",
+            "新機能または未実装仕様なら Red",
+            "regression test が追加時点で Green",
+        )
+        intake_contracts = (
+            "新機能または未実装仕様",
+            "既存挙動を固定する regression test",
+            "分類できない場合は Green 例外を適用せず判断点として返す",
+        )
+
+        reference_sets = (
+            skills.source_references,
+            skills.claude_references,
+            skills.codex_references,
+        )
+        for references in reference_sets:
+            for reference, contracts in (
+                ("implementation-branches.md", implementation_contracts),
+                ("qa-and-integration.md", qa_contracts),
+                ("branch-plan-intake.md", intake_contracts),
+            ):
+                with self.subTest(reference=reference):
+                    normalized = "".join(references[reference].split())
+                    for contract in contracts:
+                        self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_implementers_return_regression_green_evidence(
+        self,
+    ) -> None:
+        required_contracts = (
+            "新機能または未実装仕様では Red を必須",
+            "既存挙動を固定する regression test に限り追加時点の Green を許可",
+            "既存挙動を固定する追補 test であること",
+            "対応する AC",
+            "期待値の根拠",
+            "既存実装がすでに仕様を満たしていたこと",
+            "形式的な Red のために本番 code を変更しない",
+            "親が明示した一時 mutation 検証だけを行い、commit しない",
+            "変更禁止範囲と本番 code を mutation の対象にしない",
+        )
+
+        for name in ("implementer", "senior-implementer", "expert-implementer"):
+            paths = (
+                Path("shared/agents") / f"{name}.md",
+                Path("plugins/claude/agents") / f"{name}.md",
+                Path("plugins/codex/install/agents") / f"{name}.toml",
+            )
+            for path in paths:
+                with self.subTest(name=name, path=path):
+                    normalized = "".join(self._repository_text(path).split())
+                    for contract in required_contracts:
+                        self.assertIn("".join(contract.split()), normalized)
+
+    def test_repository_decision_corpus_covers_red_and_regression_green_cases(
+        self,
+    ) -> None:
+        corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
+        required_contracts = (
+            "## EVAL-11: 新機能では Red 証跡が必須",
+            "新機能または未実装仕様",
+            "Red 時点の失敗出力を必須",
+            "## EVAL-12: regression test の追加時点 Green 例外",
+            "既存挙動を固定する追補 test",
+            "期待値の根拠",
+            "既存実装がすでに仕様を満たしていた",
+            "形式的 Red のために本番 code を変更しない",
+            "mutation を commit しない",
+            "親が AC、test、期待値の根拠、既存挙動の対応を確認",
+        )
+        normalized = "".join(corpus.split())
+        for contract in required_contracts:
+            self.assertIn("".join(contract.split()), normalized)
+
     def test_repository_readmes_list_all_distributed_agents(self) -> None:
         """Make every bundled agent discoverable from both platform READMEs."""
         claude_readme = (REPOSITORY_ROOT / "plugins" / "claude" / "README.md").read_text(

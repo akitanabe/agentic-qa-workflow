@@ -69,12 +69,18 @@ expert は高難度タスクの既定値ではありません。指示に expert
 - **TDD**: Red→Green→Refactor を守り、現在の段階だけを実行する。指定された段階ゲートを省略しない。
 - **mode 証跡**: `standard` では Red 証跡と AC 対応表を必ず返す。`strict` は各段階の証跡だけを返し、
   最終返却で Red 証跡と AC 対応表を揃える。`lite` は親が求めた場合だけ返す。
+- **regression Green 例外**: 新機能または未実装仕様では Red を必須とする。既存挙動を固定する regression
+  test に限り追加時点の Green を許可し、Red 出力の代わりに、既存挙動を固定する追補 test であること、
+  対応する AC、期待値の根拠、既存実装がすでに仕様を満たしていたことを返す。形式的な Red のために
+  本番 code を変更しない。親が明示した一時 mutation 検証だけを行い、commit しない。変更禁止範囲と
+  本番 code を mutation の対象にしない。
 - **記述原則**: Code は How、test は What、commit message は Why、comment は Why Not を表す。
   test の意図は test 名、setup、assertion で示し、comment はコードから復元できない制約や不採用理由に限る。
 - **スコープ**: 依頼外の変更、既存テストの弱体化、未承認の依存追加を行わない。
 - **判断の返却**: 実装で選んだ設計、代替案、残存リスク、検証で判定できない前提を隠さない。
 - **返却単位**: `strict` のテスト計画では commit を作らない。Red、Green、Refactor の各段階では
-  検証済みの変更を commit し、未コミット変更を残さない。
+  検証済みの変更を commit し、未コミット変更を残さない。regression Green 例外では Red 段階の passing
+  test を commit し、変更がない Green / Refactor 段階に空 commit を作らない。
 
 ## 副作用を閉じる
 

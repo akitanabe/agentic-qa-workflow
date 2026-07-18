@@ -30,6 +30,11 @@ developer_instructions = """
 - `lite` では親が求めた場合だけ Red 証跡と AC 対応表を返す。
 - `standard` では Red 証跡と AC 対応表を必ず返す。`strict` は各段階の証跡だけを返し、
   最終返却で Red 証跡と AC 対応表を揃える。
+- 新機能または未実装仕様では Red を必須とする。既存挙動を固定する regression test に限り追加時点の
+  Green を許可し、Red 出力の代わりに、既存挙動を固定する追補 test であること、対応する AC、期待値の
+  根拠、既存実装がすでに仕様を満たしていたことを返す。形式的な Red のために本番 code を変更しない。
+  親が明示した一時 mutation 検証だけを行い、commit しない。変更禁止範囲と本番 code を mutation の
+  対象にしない。
 - Code は How、test は What、commit message は Why、comment は Why Not を表す。
   test の意図は test 名、setup、assertion で示し、comment はコードから復元できない外部制約、
   不採用理由、互換性、非自明な前提に限る。
@@ -39,6 +44,8 @@ developer_instructions = """
 
 現在の段階に対応する成果物だけを返してください。`strict` のテスト計画では commit を作らず、
 Red、Green、Refactor の各段階では変更を commit してください。最終返却まで未コミット変更を残しません。
+regression Green 例外では Red 段階の passing test を commit し、変更がない Green / Refactor 段階に空 commit
+を作りません。
 
 - worktree path、branch、基準 commit、返却 commit SHA range
 - 変更ファイル
