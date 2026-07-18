@@ -39,28 +39,54 @@ REFACTORER_NAMES = (
 )
 GENERATED_MARKDOWN_WARNING = "<!-- Generated from shared/. Do not edit directly. -->"
 GENERATED_TOML_WARNING = "# Generated from shared/. Do not edit directly."
-SKILL_REFERENCE_NAMES = (
-    "implementation-branches.md",
-    "expert-selection.md",
-    "qa-and-integration.md",
-    "qa-report.md",
-)
-SHARED_SKILL_ROOT = Path("shared/skill/delegate-implementation")
-SHARED_SKILL_PATH = SHARED_SKILL_ROOT / "SKILL.md"
+PLATFORMS = ("claude", "codex")
+DELEGATE_SKILL = "delegate-implementation"
+SHARED_SKILL_ROOT = Path("shared/skill")
+# Mirror the generator's skill-name -> reference-name mapping so fixtures and
+# path derivation stay data-driven per skill instead of hardcoding one skill.
+SKILL_REFERENCE_NAMES = {
+    DELEGATE_SKILL: (
+        "implementation-branches.md",
+        "expert-selection.md",
+        "qa-and-integration.md",
+        "qa-report.md",
+    ),
+}
+
+
+def shared_skill_path(skill: str) -> Path:
+    return SHARED_SKILL_ROOT / skill / "SKILL.md"
+
+
+def shared_skill_reference_path(skill: str, name: str) -> Path:
+    return SHARED_SKILL_ROOT / skill / "references" / name
+
+
+def generated_skill_path(platform: str, skill: str) -> Path:
+    return Path(f"plugins/{platform}/skills/{skill}/SKILL.md")
+
+
+def generated_skill_reference_path(platform: str, skill: str, name: str) -> Path:
+    return Path(f"plugins/{platform}/skills/{skill}/references/{name}")
+
+
+# Single-skill aliases for the sole distributed skill keep the real-repository
+# contract assertions concise; both derive from the per-skill builders above.
+SHARED_SKILL_PATH = shared_skill_path(DELEGATE_SKILL)
 SHARED_SKILL_REFERENCE_PATHS = {
-    name: SHARED_SKILL_ROOT / "references" / name
-    for name in SKILL_REFERENCE_NAMES
+    name: shared_skill_reference_path(DELEGATE_SKILL, name)
+    for name in SKILL_REFERENCE_NAMES[DELEGATE_SKILL]
 }
 GENERATED_SKILL_PATHS = {
-    "claude": Path("plugins/claude/skills/delegate-implementation/SKILL.md"),
-    "codex": Path("plugins/codex/skills/delegate-implementation/SKILL.md"),
+    platform: generated_skill_path(platform, DELEGATE_SKILL)
+    for platform in PLATFORMS
 }
 GENERATED_SKILL_REFERENCE_PATHS = {
     platform: {
-        name: path.parent / "references" / name
-        for name in SKILL_REFERENCE_NAMES
+        name: generated_skill_reference_path(platform, DELEGATE_SKILL, name)
+        for name in SKILL_REFERENCE_NAMES[DELEGATE_SKILL]
     }
-    for platform, path in GENERATED_SKILL_PATHS.items()
+    for platform in PLATFORMS
 }
 CODEX_PROFILE_PATH = Path("plugins/codex/install/agents")
 CLAUDE_PROFILE_PATH = Path("plugins/claude/agents")
@@ -135,7 +161,7 @@ class RepositoryContractSupport:
 
         def combine(main: str, references: dict[str, str]) -> str:
             return main + "\n" + "\n".join(
-                references[name] for name in SKILL_REFERENCE_NAMES
+                references[name] for name in SKILL_REFERENCE_NAMES[DELEGATE_SKILL]
             )
 
         return RepositorySkillTexts(
@@ -220,18 +246,18 @@ class IsolatedRepositorySupport:
             "<!-- codex-only:end -->\n"
         )
 
-    def _skill_source(self) -> str:
+    def _skill_source(self, skill: str = DELEGATE_SKILL) -> str:
         """Return a common skill source covering frontmatter and body markers."""
         return (
             "<!-- claude-only:start -->\n"
             "---\n"
-            "name: delegate-implementation\n"
+            f"name: {skill}\n"
             "description: Claude fixture skill\n"
             "---\n"
             "<!-- claude-only:end -->\n"
             "<!-- codex-only:start -->\n"
             "---\n"
-            "name: delegate-implementation\n"
+            f"name: {skill}\n"
             "description: Codex fixture skill\n"
             "---\n"
             "<!-- codex-only:end -->\n"
@@ -263,8 +289,19 @@ class IsolatedRepositorySupport:
             "<!-- codex-only:end -->\n"
         )
 
-    def _make_repository(self, root: Path) -> None:
+    def _active_skills(
+        self, extra_skills: dict[str, tuple[str, ...]] | None
+    ) -> dict[str, tuple[str, ...]]:
+        """Merge the distributed skill mapping with test-only extra skills."""
+        return {**SKILL_REFERENCE_NAMES, **(extra_skills or {})}
+
+    def _make_repository(
+        self,
+        root: Path,
+        extra_skills: dict[str, tuple[str, ...]] | None = None,
+    ) -> None:
         """Create a complete minimal repository fixture with stale generated files."""
+        skills = self._active_skills(extra_skills)
         self._write(root, "shared/VERSION", "1.2.3\n")
         self._write(
             root,
@@ -277,17 +314,18 @@ class IsolatedRepositorySupport:
             'claude = "SendMessage"\n'
             'codex = "followup_task"\n',
         )
-        self._write(
-            root,
-            SHARED_SKILL_PATH.as_posix(),
-            self._skill_source(),
-        )
-        for name, path in SHARED_SKILL_REFERENCE_PATHS.items():
+        for skill, reference_names in skills.items():
             self._write(
                 root,
-                path.as_posix(),
-                self._skill_reference_source(name),
+                shared_skill_path(skill).as_posix(),
+                self._skill_source(skill),
             )
+            for name in reference_names:
+                self._write(
+                    root,
+                    shared_skill_reference_path(skill, name).as_posix(),
+                    self._skill_reference_source(name),
+                )
         for name in AGENT_NAMES:
             sandbox_mode = "read-only" if name in REVIEWER_NAMES else None
             self._write(
@@ -317,19 +355,19 @@ class IsolatedRepositorySupport:
             )
         self._write(root, "plugins/codex/install/VERSION", "0.9.0\n")
 
-        self._write(
-            root,
-            "plugins/claude/skills/delegate-implementation/SKILL.md",
-            "stale claude skill\n",
-        )
-        self._write(
-            root,
-            "plugins/codex/skills/delegate-implementation/SKILL.md",
-            "stale codex skill\n",
-        )
-        for platform_paths in GENERATED_SKILL_REFERENCE_PATHS.values():
-            for path in platform_paths.values():
-                self._write(root, path.as_posix(), "stale skill reference\n")
+        for platform in PLATFORMS:
+            for skill, reference_names in skills.items():
+                self._write(
+                    root,
+                    generated_skill_path(platform, skill).as_posix(),
+                    f"stale {platform} skill\n",
+                )
+                for name in reference_names:
+                    self._write(
+                        root,
+                        generated_skill_reference_path(platform, skill, name).as_posix(),
+                        "stale skill reference\n",
+                    )
         for name in AGENT_NAMES:
             self._write(root, f"plugins/claude/agents/{name}.md", "stale claude agent\n")
             self._write(
@@ -369,12 +407,36 @@ class IsolatedRepositorySupport:
         script = root / "scripts" / "build_plugin_assets.py"
         script.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(BUILDER_SOURCE, script)
+        if extra_skills:
+            self._extend_skill_mapping(script, extra_skills)
+
+    def _extend_skill_mapping(
+        self, script: Path, extra_skills: dict[str, tuple[str, ...]]
+    ) -> None:
+        """Register extra skills by adding one mapping entry to the copied script."""
+        # Editing the copied script mirrors the production intent that a new skill
+        # becomes generated by adding a single mapping entry; the anchor asserts the
+        # mapping literal has not silently drifted from this data-driven shape.
+        anchor = "SKILL_REFERENCE_NAMES = {\n"
+        text = script.read_text(encoding="utf-8")
+        self.assertIn(anchor, text)
+        entries = "".join(
+            f"    {skill!r}: ({''.join(f'{name!r}, ' for name in names)}),\n"
+            for skill, names in extra_skills.items()
+        )
+        script.write_text(
+            text.replace(anchor, anchor + entries, 1),
+            encoding="utf-8",
+            newline="\n",
+        )
 
     @contextmanager
-    def _temporary_repository(self) -> Iterator[Path]:
+    def _temporary_repository(
+        self, extra_skills: dict[str, tuple[str, ...]] | None = None
+    ) -> Iterator[Path]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            self._make_repository(root)
+            self._make_repository(root, extra_skills)
             yield root
 
     def _run(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -388,16 +450,25 @@ class IsolatedRepositorySupport:
             encoding="utf-8",
         )
 
-    def _generated_paths(self, root: Path) -> list[Path]:
+    def _generated_paths(
+        self,
+        root: Path,
+        extra_skills: dict[str, tuple[str, ...]] | None = None,
+    ) -> list[Path]:
         """List every file whose content is owned by the generator."""
+        skills = self._active_skills(extra_skills)
         paths = [
-            *(root / path for path in GENERATED_SKILL_PATHS.values()),
             root / "plugins/claude/.claude-plugin/plugin.json",
             root / "plugins/codex/.codex-plugin/plugin.json",
             root / "plugins/codex/install/VERSION",
         ]
-        for platform_paths in GENERATED_SKILL_REFERENCE_PATHS.values():
-            paths.extend(root / path for path in platform_paths.values())
+        for platform in PLATFORMS:
+            for skill, reference_names in skills.items():
+                paths.append(root / generated_skill_path(platform, skill))
+                paths.extend(
+                    root / generated_skill_reference_path(platform, skill, name)
+                    for name in reference_names
+                )
         for name in AGENT_NAMES:
             paths.extend(
                 (

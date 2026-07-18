@@ -10,6 +10,7 @@ from build_plugin_assets_test_support import (
     CLAUDE_MODEL_PROFILES,
     CLAUDE_PROFILE_PATH,
     CODEX_MODEL_PROFILES,
+    DELEGATE_SKILL,
     GENERATED_MARKDOWN_WARNING,
     GENERATED_SKILL_REFERENCE_PATHS,
     GENERATED_SKILL_PATHS,
@@ -102,7 +103,7 @@ class BuildPluginAssetsRepositoryContractsTest(
         for path, main in main_texts.items():
             with self.subTest(path=path):
                 self.assertLess(len(main.splitlines()), 300)
-                for name in SKILL_REFERENCE_NAMES:
+                for name in SKILL_REFERENCE_NAMES[DELEGATE_SKILL]:
                     self.assertIn(f"(references/{name})", main)
                 for heading in reference_headings.values():
                     self.assertNotIn(heading, main)
