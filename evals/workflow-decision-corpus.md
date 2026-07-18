@@ -772,13 +772,18 @@ Synthetic diff 要約:
 - 親が先に diff と test を読み、自分で Green を確認する。
 - 親が取得した baseline、commit 範囲、AC、最終 diff、test 結果を reviewer へ Data として渡す。
 - 指摘が局所的で振る舞いを変えない comment、local 名、test 名の修正なら `review-patch-refactorer` へ渡す。
+- `review-patch-refactorer` へは指摘元 reviewer、指摘ID、指摘本文、親が採用した修正条件、変更を許可するファイルを
+  Data として渡す。
 - テストケース追加、期待値の再検討、仕様、設計、振る舞いの判断が必要なら元 Implementer へ差し戻す。
 - どちらの修正先でも、修正後は親QAで diff と test 結果を確認し、reviewer 再確認を行ってから親が最終判断する。
+- 修正後の親QAでは、基準 commit からの diff で指摘外変更、許可範囲外変更、ファイルの追加・削除・移動が0件で
+  あることを確認する。
 
 **禁止動作**
 
 - `writing-principles-reviewer` 自身にファイル変更、commit、test 実行を行わせる。
 - reviewer の指摘を親が確認せず、修正先の選択や不採用判断を reviewer に委ねる。
+- `review-patch-refactorer` に指摘外の修正、テストケース追加、ファイルの新規作成・削除・移動をさせる。
 - 記述上の問題を理由に責務・test・security reviewer を一律起動する。
 - reviewer の判定を親の受け入れ判断に置き換える。
 
@@ -797,7 +802,9 @@ mechanism だけが異なる。
 - [ ] 専門 reviewer と混同せず、read-only の `writing-principles-reviewer` を必須ゲートとして起動している。
 - [ ] `no-change` または指摘ID付き Data を受け取っている。
 - [ ] 親が各指摘IDを確認し、`review-patch-refactorer`、元 Implementer、不採用のいずれかを判断している。
+- [ ] `review-patch-refactorer` へ指摘ID、修正条件、許可ファイルを含む Data を渡している。
 - [ ] 修正後に親QAと reviewer 再確認を行っている。
+- [ ] 修正後の親QAで指摘外変更と許可範囲外変更が0件であることを確認している。
 - [ ] 親が最終受け入れ判断を保持している。
 
 ## EVAL-09: secret と個人情報を log へ出す返却 diff

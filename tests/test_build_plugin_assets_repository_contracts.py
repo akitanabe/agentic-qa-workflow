@@ -924,6 +924,89 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn("".join(contract.split()), normalized_agent)
                 self.assertIn("".join(implementer_route.split()), normalized_agent)
 
+    def _review_patch_refactorer_texts(self) -> dict[str, str]:
+        name = "review-patch-refactorer"
+        return {
+            "shared": self._repository_text(Path("shared/agents") / f"{name}.md"),
+            "claude": self._repository_text(CLAUDE_PROFILE_PATH / f"{name}.md"),
+            "codex": self._repository_text(CODEX_PROFILE_PATH / f"{name}.toml"),
+        }
+
+    def test_repository_review_patch_refactorer_requires_structured_launch_inputs(
+        self,
+    ) -> None:
+        """Patch only parent-adopted findings supplied as complete structured data."""
+        required_inputs = (
+            "指摘元 reviewer",
+            "対象となる指摘ID",
+            "指摘本文",
+            "親が採用した修正条件",
+            "対象 worktree、branch、基準 commit、対象 commit 範囲",
+            "Acceptance Criteria",
+            "変更を許可するファイル",
+            "変更を禁止するファイル",
+            "削除・移動・新規作成の可否",
+            "commit の要否",
+            "必須検証 command",
+        )
+        adoption_conditions = (
+            "親が指摘を確認し、修正対象として採用している。",
+            "Acceptance Criteria を変更する必要がない。",
+        )
+        missing_input_route = "入力が不足する場合は推測で補わず、ファイルを変更せず"
+
+        for platform, agent in self._review_patch_refactorer_texts().items():
+            with self.subTest(platform=platform):
+                normalized_agent = "".join(agent.split())
+                for contract in required_inputs + adoption_conditions:
+                    self.assertIn("".join(contract.split()), normalized_agent)
+                self.assertIn(
+                    "".join(missing_input_route.split()), normalized_agent
+                )
+
+    def test_repository_review_patch_refactorer_forbids_out_of_scope_changes(
+        self,
+    ) -> None:
+        """Keep every edit inside adopted findings and parent-approved files."""
+        prohibited_without_permission = (
+            "親が個別に許可しない限り",
+            "reviewer が明示していない問題の修正",
+            "reviewer が明示していないテストケースの追加",
+            "対象指摘の修正に不要な fixture や helper の追加",
+            "ファイルの新規作成、削除、移動",
+            "許可されていないファイルの変更",
+            "テスト期待値の変更、削除、skip、弱体化",
+            "新規依存の追加",
+        )
+
+        for platform, agent in self._review_patch_refactorer_texts().items():
+            with self.subTest(platform=platform):
+                normalized_agent = "".join(agent.split())
+                for contract in prohibited_without_permission:
+                    self.assertIn("".join(contract.split()), normalized_agent)
+
+    def test_repository_review_patch_refactorer_returns_scoped_change_report(
+        self,
+    ) -> None:
+        """Report changed/added/deleted/moved files and zero out-of-scope changes."""
+        return_contracts = (
+            "指摘IDごとの変更内容",
+            "変更したファイル",
+            "追加したファイル",
+            "削除したファイル",
+            "移動したファイル",
+            "指摘外の変更が0件",
+            "許可範囲外の変更が0件",
+            "Acceptance Criteria と外部から観測可能な振る舞いを維持した根拠",
+            "修正できなかった指摘と理由",
+        )
+
+        for platform, agent in self._review_patch_refactorer_texts().items():
+            with self.subTest(platform=platform):
+                normalized_agent = "".join(agent.split())
+                for contract in return_contracts:
+                    self.assertIn("".join(contract.split()), normalized_agent)
+
     def test_security_reviewer_is_defensive_and_detection_only(self) -> None:
         """Keep security review defensive, actionable, and inside its assigned scope."""
         paths = (
@@ -1179,6 +1262,59 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn("".join(condition.split()), normalized_workflow)
                 for route in implementer_routes:
                     self.assertIn("".join(route.split()), normalized_workflow)
+
+    def test_repository_workflow_bounds_review_patch_inputs_and_parent_scope_qa(
+        self,
+    ) -> None:
+        """Launch the patch refactorer with bounded data and re-verify scope on return."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        launch_contracts = (
+            "親が指摘を確認し、修正対象として採用している。",
+            "Acceptance Criteria を変更する必要がない。",
+            "指摘元 reviewer、対象となる指摘ID、指摘本文",
+            "親が採用した修正条件",
+            "変更を許可するファイルと変更を禁止するファイル",
+            "削除・移動・新規作成の可否と commit の要否",
+            "必須検証 command",
+            "推測で補わず、ファイルを変更せず親へ返す",
+        )
+        parent_scope_qa = (
+            "自己申告だけを信用せず",
+            "基準 commit からの変更ファイル一覧と diff",
+            "許可範囲外の変更がないこと",
+            "ファイルの追加・削除・移動がないこと",
+            "reviewer 指摘外の変更がないこと",
+            "テストケース、期待値、skip 設定の変更がないこと",
+            "focused test と関連する全体検証が green であること",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in launch_contracts + parent_scope_qa:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
+    def test_repository_decision_corpus_bounds_review_patch_scope(self) -> None:
+        """Evaluate bounded refactorer inputs and zero out-of-scope changes."""
+        corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
+        eval_08 = corpus.split(
+            "## EVAL-08: 機能的に green だが記述原則を外す差分",
+            1,
+        )[1].split("## EVAL-09:", 1)[0]
+        required_contracts = (
+            "指摘元 reviewer、指摘ID、指摘本文、親が採用した修正条件、変更を許可するファイル",
+            "指摘外変更、許可範囲外変更、ファイルの追加・削除・移動が0件",
+            "指摘外の修正、テストケース追加、ファイルの新規作成・削除・移動をさせる",
+        )
+
+        for contract in required_contracts:
+            with self.subTest(contract=contract):
+                self.assertIn(contract, eval_08)
 
     def test_repository_writing_review_gate_rechecks_every_fix_before_acceptance(
         self,
