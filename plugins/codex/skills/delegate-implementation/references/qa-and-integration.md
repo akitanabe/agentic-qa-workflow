@@ -22,6 +22,8 @@
 1. Implementer は worktree path、branch、基準 commit、返却 commit SHA range、変更ファイル、
    実行した command と結果、未コミット変更を返す。
 2. 親は `git -C <worktree> status --short` と `git -C <worktree> diff <base>...HEAD` を確認する。
+   併せて親の checkout を `git -C <親 checkout> status --short` で確認し、worker の変更が worktree の外へ
+   混入していないことを確かめる。
 3. 報告だけで受け入れず、対象 test と実装 diff を開く。
 4. QA hard reject は同じ枝へ `followup_task` で差し戻し、修正 commit を追加させる。
 5. 専門 reviewer には task、AC、commit 範囲、変更ファイル、diff text、対象 risk を渡す。

@@ -17,7 +17,3 @@ codex = "新しい worker"
 [terms.continuation_mechanism]
 claude = "`SendMessage`"
 codex = "`followup_task`"
-
-[terms.worktree_isolation]
-claude = "`isolation: \"worktree\"`"
-codex = "隔離された worktree"

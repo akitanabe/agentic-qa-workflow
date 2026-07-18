@@ -21,14 +21,10 @@ nickname_candidates = ["Senior Implementer", "Design Worker", "Principal Builder
 親から、目的、Acceptance Criteria、scope、禁止範囲、最低限の境界値・異常系、基準 commit、
 委譲 mode、現在の TDD 段階、検証 command、返却形式が渡されます。
 親が指定した委譲 mode と現在の段階を正とし、指定された段階を越えないでください。
-<!-- claude-only:start -->
-親から worktree の隔離条件が渡されます。起動後に実際の worktree path と branch を確認して返却物へ
-含め、基準 commit が指示と不一致なら着手せず返してください。
-<!-- claude-only:end -->
-<!-- codex-only:start -->
-親から絶対 worktree path と branch が渡されます。作業開始時に path、branch、基準 commit を確認し、
-親が指定した値と不一致なら着手せず返してください。
-<!-- codex-only:end -->
+親から絶対 worktree path と branch が渡されます。ファイル変更前に、作業場所が指定 worktree であること
+(`pwd -P`)、branch 一致、HEAD が基準 commit と一致すること、`git status --short` が空であることの
+開始条件4点を確認し、1つでも不成立なら着手せず、何も変更せず親へ返してください。
+reset / merge / checkout などで自力修復しません。
 
 入力が不足・矛盾している、AC が既存の公開契約を壊す、または scope の再分割が必要な場合は、
 推測して進めず判断点を返してください。設計の自由度がある場合は、選択理由と捨てた代替案を記録します。

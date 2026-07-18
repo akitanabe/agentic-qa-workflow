@@ -572,10 +572,17 @@ class BuildPluginAssetsRepositoryContractsTest(
                 source,
             )
 
-    def test_repository_implementer_worktree_inputs_are_platform_specific(
+    def test_repository_implementer_worktree_inputs_use_parent_managed_contract(
         self,
     ) -> None:
-        """Assign worktree paths before Codex launch and after Claude launch."""
+        """Give both platforms a parent-managed worktree and start-condition gate."""
+        start_condition_contracts = (
+            "絶対 worktree path と branch",
+            "`pwd -P`",
+            "`git status --short` が空",
+            "基準 commit",
+            "着手せず",
+        )
         for name in ("implementer", "senior-implementer", "expert-implementer"):
             claude = self._repository_text(
                 Path("plugins/claude/agents") / f"{name}.md"
@@ -584,19 +591,17 @@ class BuildPluginAssetsRepositoryContractsTest(
                 Path("plugins/codex/install/agents") / f"{name}.toml"
             )
 
-            with self.subTest(name=name, platform="claude"):
-                self.assertIn("worktree の隔離条件", claude)
-                self.assertIn(
+            for platform, content in (("claude", claude), ("codex", codex)):
+                with self.subTest(name=name, platform=platform):
+                    normalized = "".join(content.split())
+                    for contract in start_condition_contracts:
+                        self.assertIn("".join(contract.split()), normalized)
+
+            with self.subTest(name=name, platform="claude", check="no-isolation"):
+                self.assertNotIn('isolation: "worktree"', claude)
+                self.assertNotIn(
                     "起動後に実際の worktree path と branch を確認",
                     claude,
-                )
-                self.assertNotIn("絶対 worktree path と branch", claude)
-
-            with self.subTest(name=name, platform="codex"):
-                self.assertIn("絶対 worktree path と branch", codex)
-                self.assertIn(
-                    "親が指定した値と不一致なら着手せず返してください",
-                    codex,
                 )
 
     def test_repository_reviewers_separate_boundary_and_safety_risks(self) -> None:
@@ -658,13 +663,14 @@ class BuildPluginAssetsRepositoryContractsTest(
 
         self.assertIn("## 後始末", skills.source)
         self.assertIn("最終ゲートをすべて通過した後", skills.claude)
-        self.assertIn("対象 Agent の終了後", skills.claude)
+        self.assertIn("親がこのタスク用に作成した", skills.claude)
         self.assertIn("`git worktree remove <worktree path>`", skills.claude)
         self.assertIn("最終ゲートをすべて通過した後", skills.codex)
         self.assertIn("親がこのタスク用に作成した", skills.codex)
         self.assertIn("`git worktree remove <worktree path>`", skills.codex)
         self.assertIn("親がこのワークフローで起動した agent を停止する。", skills.codex)
         self.assertNotIn("親がこのワークフローで起動した agent を停止する。", skills.claude)
+        self.assertNotIn('isolation: "worktree"', skills.claude)
 
     def test_repository_skills_start_a_fresh_implementer_context_per_branch(
         self,
@@ -709,10 +715,10 @@ class BuildPluginAssetsRepositoryContractsTest(
             for skill in skills.all_texts():
                 self.assertIn(item, skill)
 
-        self.assertIn("worktree の隔離条件", skills.source)
-        self.assertIn("worktree の隔離条件", skills.claude)
         self.assertIn("絶対 worktree path と branch 名", skills.source)
+        self.assertIn("絶対 worktree path と branch 名", skills.claude)
         self.assertIn("絶対 worktree path と branch 名", skills.codex)
+        self.assertNotIn("worktree の隔離条件", skills.claude)
 
     def test_repository_codex_agents_use_role_appropriate_model_profiles(
         self,
