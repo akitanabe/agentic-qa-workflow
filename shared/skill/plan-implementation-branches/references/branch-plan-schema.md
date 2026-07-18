@@ -1,11 +1,18 @@
-# Branch Plan 正規スキーマ案
-
-> 正本は `shared/skill/plan-implementation-branches/references/branch-plan-schema.md` へ移行済み。
-> 本ファイルは設計経緯の記録である。
+# Branch Plan 正規スキーマ
 
 `plan-implementation-branches` Skill の出力であり、`delegate-implementation` への入力となる
-Branch Plan の正規スキーマ案を定義する。設計の経緯と確定事項は
+Branch Plan の正規スキーマ(正本)を定義する。確定済み Branch Plan を
+`delegate-implementation` へ渡せるが、受け渡しは親エージェントの責務であり、この Skill は
+委譲を開始しない。設計の経緯と確定事項は `docs/branch-plan-schema.md` と
 [issue #46](https://github.com/akitanabe/agentic-qa-workflow/issues/46) を参照。
+
+## 目次
+
+- 設計方針
+- スキーマ本体
+- blocking violation code
+- 状態遷移と権限
+- tests / stage_tests の意味
 
 ## 設計方針
 
@@ -202,29 +209,6 @@ planning Skill と Executor は同じ検査規則を使う。Executor は planni
 計画の確定だけで停止する。確認モードの既定値は `review` とし、`auto` はユーザーが明示した
 場合のみ使う。
 
-## implementation_stages の実行規約
-
-`implementation_stages` は Domain / Repository / Endpoint のような実装上の中間段階であり、
-`strict` の Test plan / Red / Green / Refactor とは別の軸である。両者の関係を次のとおり定める。
-
-- stages を宣言した枝は `strict` の段階ゲート機構で実行する。`delegation.requested_mode` が
-  `strict` でない場合(mode 未指定の `null` を含む)、Executor は現行の mode 引き上げ契約に従い、
-  具体的なリスクを報告して `strict` へ引き上げる。引き上げが受け入れられない場合は stages を
-  実行せず、枝の再分割または stages の削除を要求する。
-- 各 stage を `strict` の1サイクル(テスト計画 → Red → Green → Refactor)として実行する。
-  stage の Red は `stage_tests` のテストだけを対象とし、後続 stage のテストを先に書かない。
-  このため「後続 stage のテストが red のまま進む」状態は発生しない。
-- stage の Green / Refactor gate の条件は「基準 commit 時点の既存テスト、完了済み stage の
-  `stage_tests`、現在 stage の `stage_tests` がすべて green」とする。stage 境界では、現在までに
-  追加したすべてのテストが green であることを親が確認する。最終 stage 完了後は、枝の全必須テストを
-  改めて実行し、外部向け AC の受け入れ判断を枝単位で行う。
-- commit は `strict` の段階別 commit 規約に従い、stage ごとに Red / Green / Refactor の commit を
-  作る。stage 境界(Refactor commit 後)で親が worktree の状態を確認する。
-- stage ごとの返却証跡には、現在の stage だけでなく累積テストの実行結果を含める。最終返却には、
-  先頭 stage の最初の commit から末尾 stage の最終 commit までの SHA range と、stage ごとの
-  commit SHA・検証結果を含める。
-- 追加時点で green が許される regression 系テストの扱いは、現行の Red 証跡契約に従う。
-
 ## tests / stage_tests の意味
 
 `tests` と `stage_tests` はテスト種別だけを保持する。具体的なテスト名、実行 command、期待値は
@@ -237,112 +221,3 @@ Branch Plan では確定しない。
 - 検証 command は対象 repository の設定に依存するため、planning Skill は command を推測しない。
 - Executor は、枝の `tests` に列挙された種別が委譲 prompt の必須テストと検証 command で
   すべて充足されることを委譲前に確認する。
-
-## Executor 側の再検証
-
-`delegate-implementation` は Branch Plan の自己申告を信用せず、委譲開始前に次を再検証する。
-
-1. `status: approved` であり、`approval.method` が設定済みである。
-2. `delegation.authorized: true` かつ `authorized_by: user` である。
-3. `unresolved_decisions` が空である。
-4. blocking violation code 表のすべての検査規則を入力 Data から再計算し、違反が0件である。
-
-いずれかを満たさない場合は実装を開始せず、Branch Plan の修正(または委譲要求の有無の確認)を
-要求する。
-
-## 現行契約との整合
-
-- 枝の単位は `shared/skill/delegate-implementation/references/implementation-branches.md` の
-  「外部から観測可能な振る舞い / 単独の AC・検証・受け入れ・revert」のまま。`purpose` は
-  委譲 prompt の「目的: <外部から観測可能な振る舞い>」へそのまま流し込める。
-- `implementation_stages` は `strict` mode の段階ゲート機構(同一 Implementer・同一 worktree・
-  段階別 commit・親の境界確認)を stage 単位に適用したものであり、新しい委譲機構を追加しない。
-  stage commit は枝の worktree に留まり、統合は枝の受け入れ時に1回だけ行うため、中間統合による
-  原子性の問題は発生しない。
-- `shared_foundation` は `delegate-implementation` SKILL.md の「親が委譲前に行える明示的な例外」の
-  構造化であり、契約文面の変更を伴わない。
-- stages 宣言枝の `strict` への引き上げと、high risk 時の `delegation_mode_proposal` は、いずれも
-  「mode を引き上げた場合はリスクをユーザーへ報告する」「ユーザーが明示した mode を親都合で
-  引き下げない」という現行契約の枠内で動く。引き下げ(`lite`)は表現できない構造にしている。
-
-## issue #46 確定事項からの意図的な変更
-
-レビューでは AC 側に `verified_by`(検証参加する枝の一覧)を持たせる案だったが、本スキーマでは
-枝側の `verifies_acceptance_criteria` へ正規化した。割り当てを枝側の一方向参照に統一し、
-AC 側と枝側の二重管理を避けるため。表現できる内容は同等である。
-
-## レビュー指摘への対応
-
-スキーマ案の初版レビューで確認された5件の指摘と、確定した対応を記録する。
-
-### 1. 承認と委譲開始権限の分離 — 候補構造を採用
-
-`confirmation_mode` を全 status で保持する独立フィールドにし、`approval.method`(nullable)と
-`delegation.authorized` / `authorized_by` を分離した。初版は状態遷移表で `review` mode を参照
-しながら確認 mode のフィールドを持たず、`awaiting_review` 中の委譲要求も保持できなかった。
-
-### 2. `blocked` 条件の統一 — validation violation も `blocked` の条件にする
-
-`status: blocked` の条件を「`unresolved_decisions` または `validation.blocking` のいずれかが非空」
-に統一し、解消後の遷移を `confirmation_mode` で復元する形にした。旧 `self_assessment` のうち
-実装枝契約に関わる3項目(`independently_reviewable`、`rollback_scope_isolated`、
-`forbidden_scope_clear`)は `branch-contract-violation` と `scope-conflict` の blocking violation に
-置き換え、`false` のまま承認へ進む経路を廃止した。補助指標の3項目だけを `self_assessment` に残す。
-
-### 3. stages と `strict` 段階ゲートの関係 — stage ごとに TDD サイクルを回す
-
-「implementation_stages の実行規約」の節として確定した。要点: stages 宣言枝は `strict` 実行を
-必須とし(引き上げは現行 mode 契約に従う)、各 stage を1つの TDD サイクルとして実行、Red は
-`stage_tests` のみを対象、Green は「stage_tests + 既存テストが green」、commit は段階別 commit
-規約に従い stage 境界で親が確認する。
-
-### 4. blocking validation の正規化 — 共通 violation 形式を採用
-
-`validation.blocking` を `{code, path, message}` の配列へ正規化し、安定した violation code 表を
-定義した。Executor の再検証は同じ code 表の再計算として定義し、planning Skill の自己申告と
-Executor の検査規則の乖離をなくした。レビューで列挙された全違反(id 重複、参照切れ、AC 割り当て、
-実行順序、scope 矛盾、テスト欠落、stages 不整合、枝契約違反)を code として網羅している。
-
-### 5. high risk 時の `strict` 提案 — 必須化
-
-`delegation_mode_proposal` は「high risk の枝が存在し、ユーザー確定済みの mode が `strict` でない
-(未指定を含む)場合は出力必須」とした。low risk から `lite` を提案・自動選択しない契約は維持する。
-
-## 再レビュー指摘への対応
-
-初版5指摘への対応後の再レビューで確認された5件の指摘と、確定した対応を記録する。
-
-### 1. 委譲 mode の保持 — `delegation.requested_mode` を追加
-
-候補構造と不変条件をそのまま採用した。mode の明示は委譲要求を兼ねるため、`requested_mode` が
-非 null なら `authorized: true` / `authorized_by: user` を要求する。mode 未指定の委譲要求は
-`null` のまま保持し、Executor が現行契約どおり `standard` を選ぶ。実際に採用した mode は
-Branch Plan へ書き戻さず、Executor が実行 Data として保持して最終報告で報告する。Branch Plan を
-計画 Data に保ち、Executor が計画成果物を書き換える経路を作らないため。
-
-### 2. stage の Green 条件 — 累積条件へ修正
-
-指摘のとおり、旧条件では後続 stage が先行 stage の振る舞いやテストを壊しても Green 判定を
-通過できた。Green / Refactor gate を「基準 commit 時点の既存テスト + 完了済み stage の
-`stage_tests` + 現在 stage の `stage_tests`」の累積条件へ修正し、stage 境界の親確認と
-stage ごとの返却証跡にも累積テストの実行結果を必須とした。
-
-### 3. トップレベル状態の組み合わせ検査 — 有効組み合わせ表と4 code を追加
-
-`state-invalid` / `approval-invalid` / `delegation-invalid` / `mode-proposal-invalid` を追加し、
-値の個別検査ではなく有効な組み合わせ表からの再計算として定義した。レビュー案の
-`mode-proposal-missing` は、必要時の欠落だけでなく不要時の出力と `strict` 以外の提案も同じ
-再計算で検査できるため、`mode-proposal-invalid` へ一般化した。「stages 宣言枝の引き上げを
-判断できる Data がない」問題は指摘1の `requested_mode` 追加で解消した。
-
-### 4. `affects` の型付き参照 — 候補構造を採用
-
-`kind: branch | ac-assignment | execution-order` と `id` の分離をそのまま採用した。`kind` ごとの
-`id` の必須・禁止、参照存在検査、未知 `kind` の `unknown-reference` 扱いも指摘どおりとした。
-
-### 5. tests / stage_tests の意味 — 種別のみ保持(案1)を採用
-
-Branch Plan はテスト種別だけを保持し、具体的なテスト・実行 command は親が承認するテスト計画と
-委譲 prompt で確定する(「tests / stage_tests の意味」の節)。検証 command は対象 repository の
-設定に依存し、planning Skill が確定できない command を推測しないためには案1が現行方針
-(勝手に仕様を補完しない)と整合する。構造化保持(案2)は採用しない。

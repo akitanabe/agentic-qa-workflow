@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Implementation Branches"
+  short_description: "Normalize a plan into a delegatable Branch Plan"
+  default_prompt: "Use $plan-implementation-branches to normalize this plan into a delegatable Branch Plan without starting delegation."

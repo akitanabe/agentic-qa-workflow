@@ -8,6 +8,10 @@
   - タスク分割、worktree 隔離、委譲、返却 diff とテストの QA、最終検証を定義します。
 - `skills/delegate-implementation/references/*.md`
   - 実装枝、expert 選択、QA・統合の詳細を必要な段階で参照します。
+- `skills/plan-implementation-branches/SKILL.md`
+  - 実装プランを委譲可能な Branch Plan へ正規化します。実装や委譲は行いません。
+- `skills/plan-implementation-branches/references/*.md`
+  - Branch Plan スキーマ、枝分割判断、ユーザー確認の詳細を必要な段階で参照します。
 - `agents/implementer.md`
   - 仕様が明確で範囲が閉じた通常実装を担当します。
 - `agents/senior-implementer.md`

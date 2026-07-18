@@ -19,6 +19,20 @@ from build_plugin_assets_test_support import (
     SHARED_SKILL_PATH,
     SHARED_SKILL_REFERENCE_PATHS,
     SKILL_REFERENCE_NAMES,
+    generated_skill_path,
+    generated_skill_reference_path,
+    shared_skill_path,
+    shared_skill_reference_path,
+)
+
+
+PLAN_SKILL = "plan-implementation-branches"
+# 契約が要求する reference 構成をテスト側で明示的に宣言する。生成 mapping への
+# 依存を避け、原稿が未整備の状態を「必要ファイルの欠落」として検出させる。
+PLAN_REFERENCE_NAMES = (
+    "branch-plan-schema.md",
+    "branch-splitting.md",
+    "plan-review.md",
 )
 
 
@@ -1081,6 +1095,130 @@ class BuildPluginAssetsRepositoryContractsTest(
             with self.subTest(name=name):
                 self.assertIn(f"agents/{name}.md", claude_readme)
                 self.assertIn(f"`{name}`", codex_readme)
+
+
+class PlanImplementationBranchesContractsTest(
+    RepositoryContractSupport,
+    unittest.TestCase,
+):
+    def _plan_skill_texts(self) -> dict[str, str]:
+        return {
+            "source": self._repository_text(shared_skill_path(PLAN_SKILL)),
+            "claude": self._repository_text(
+                generated_skill_path("claude", PLAN_SKILL)
+            ),
+            "codex": self._repository_text(
+                generated_skill_path("codex", PLAN_SKILL)
+            ),
+        }
+
+    def _plan_reference_texts(self, name: str) -> dict[str, str]:
+        return {
+            "source": self._repository_text(
+                shared_skill_reference_path(PLAN_SKILL, name)
+            ),
+            "claude": self._repository_text(
+                generated_skill_reference_path("claude", PLAN_SKILL, name)
+            ),
+            "codex": self._repository_text(
+                generated_skill_reference_path("codex", PLAN_SKILL, name)
+            ),
+        }
+
+    def test_plan_skill_exposes_platform_frontmatter_and_reference_links(
+        self,
+    ) -> None:
+        """Expose planning frontmatter and route each detail to its reference."""
+        for platform in ("claude", "codex"):
+            main = self._plan_skill_texts()[platform]
+            with self.subTest(platform=platform):
+                self.assertTrue(main.startswith(f"---\nname: {PLAN_SKILL}\n"))
+                self.assertLess(len(main.splitlines()), 300)
+                for name in PLAN_REFERENCE_NAMES:
+                    self.assertIn(f"(references/{name})", main)
+                self.assertNotIn("<!-- claude-only", main)
+                self.assertNotIn("<!-- codex-only", main)
+
+    def test_plan_references_carry_generated_warning_and_table_of_contents(
+        self,
+    ) -> None:
+        """Give each planning reference a warning-free source and a table of contents."""
+        for name in PLAN_REFERENCE_NAMES:
+            texts = self._plan_reference_texts(name)
+            with self.subTest(reference=name):
+                self.assertFalse(
+                    texts["source"].startswith(GENERATED_MARKDOWN_WARNING)
+                )
+                self.assertTrue(texts["source"].startswith("# "))
+                self.assertIn("## 目次", texts["source"])
+                for platform in ("claude", "codex"):
+                    reference = texts[platform]
+                    self.assertTrue(
+                        reference.startswith(f"{GENERATED_MARKDOWN_WARNING}\n\n")
+                    )
+                    self.assertIn("## 目次", reference)
+
+    def test_plan_schema_reference_holds_the_canonical_schema(self) -> None:
+        """Carry the confirmed schema, violation codes, transitions, and tests meaning."""
+        required = (
+            "status: blocked | awaiting_review | approved",
+            "confirmation_mode: review | auto",
+            "delegation:",
+            "authorized: false",
+            "| code | 検査内容 |",
+            "duplicate-id",
+            "unknown-reference",
+            "branch-without-primary-ac",
+            "delegation-invalid",
+            "mode-proposal-invalid",
+            "## 状態遷移と権限",
+            "## tests / stage_tests の意味",
+        )
+        excluded = (
+            "## implementation_stages の実行規約",
+            "## Executor 側の再検証",
+            "## レビュー指摘への対応",
+            "## 再レビュー指摘への対応",
+            "## issue #46 確定事項からの意図的な変更",
+        )
+        for platform, text in self._plan_reference_texts(
+            "branch-plan-schema.md"
+        ).items():
+            with self.subTest(platform=platform):
+                normalized = "".join(text.split())
+                for contract in required:
+                    self.assertIn("".join(contract.split()), normalized)
+                for section in excluded:
+                    self.assertNotIn("".join(section.split()), normalized)
+
+    def test_plan_skill_matches_confirmed_schema_contract(self) -> None:
+        """Separate approval from delegation and never start delegation from the skill."""
+        required = (
+            "承認と委譲開始権限は独立",
+            "`delegation.authorized` は常に `false`",
+            "確認モードの既定は `review`",
+            "`auto` はユーザーが明示した場合のみ",
+            "`delegate-implementation` を直接起動しない",
+            "blocking な不足は `unresolved_decisions`",
+            "minor な不足は `assumptions`",
+        )
+        for platform, main in self._plan_skill_texts().items():
+            with self.subTest(platform=platform):
+                normalized = "".join(main.split())
+                for contract in required:
+                    self.assertIn("".join(contract.split()), normalized)
+
+    def test_docs_branch_plan_schema_points_to_the_canonical_reference(self) -> None:
+        """Redirect the design record to the canonical reference without deleting it."""
+        docs = self._repository_text(Path("docs/branch-plan-schema.md"))
+        self.assertIn(
+            "shared/skill/plan-implementation-branches/references/"
+            "branch-plan-schema.md",
+            docs,
+        )
+        self.assertIn("正本", docs)
+        self.assertIn("## レビュー指摘への対応", docs)
+        self.assertIn("## implementation_stages の実行規約", docs)
 
 
 if __name__ == "__main__":
