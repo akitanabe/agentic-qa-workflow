@@ -983,6 +983,89 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn("".join(rule.split()), normalized_workflow)
                 self.assertNotIn("`writing-principles-refactorer`", workflow)
 
+    def test_repository_decision_corpus_requires_read_only_writing_review_gate(
+        self,
+    ) -> None:
+        """Evaluate the mandatory writing review as a read-only post-return gate."""
+        corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
+        common_responsibilities = corpus.split(
+            "### 全委譲ケースで親が保持する責任",
+            1,
+        )[1].split("## 共通の手動評価手順", 1)[0]
+        eval_08 = corpus.split(
+            "## EVAL-08: 機能的に green だが記述原則を外す差分",
+            1,
+        )[1].split("## EVAL-09:", 1)[0]
+
+        section_boundaries = {
+            "expected decision": ("**期待する判断**", "**必須動作**"),
+            "required actions": ("**必須動作**", "**禁止動作**"),
+            "prohibited actions": ("**禁止動作**", "**許容される差異**"),
+            "manual checks": ("**手動評価項目**", None),
+        }
+        eval_sections = {}
+        for name, (start, end) in section_boundaries.items():
+            self.assertEqual(1, eval_08.count(start))
+            section = eval_08.split(start, 1)[1]
+            if end is not None:
+                self.assertEqual(1, section.count(end))
+                section = section.split(end, 1)[0]
+            eval_sections[name] = section
+
+        with self.subTest(contract="retired agent name"):
+            self.assertNotIn("writing-principles-refactorer", corpus)
+        with self.subTest(contract="retired completion gate role"):
+            self.assertNotIn("記述 refactorer", corpus)
+
+        for contract in (
+            "`writing-principles-reviewer`",
+            "`lite`、`standard`、`strict`",
+            "必須の完了ゲート",
+            "各実装枝を受け入れる前",
+        ):
+            with self.subTest(
+                section="common responsibilities",
+                contract=contract,
+            ):
+                self.assertIn(contract, common_responsibilities)
+
+        section_contracts = {
+            "expected decision": (
+                "専門 reviewer を追加せず",
+                "`writing-principles-reviewer` を最終差分へ起動する",
+                "reviewer は自身で変更せず",
+                "`no-change` または指摘ID付きの Data",
+                "親が各指摘ID",
+                "修正先または不採用",
+            ),
+            "required actions": (
+                "親が先に diff と test",
+                "`review-patch-refactorer` へ渡す",
+                "元 Implementer へ差し戻す",
+                "修正後は親QA",
+                "reviewer 再確認",
+            ),
+            "prohibited actions": (
+                "`writing-principles-reviewer` 自身にファイル変更",
+                "reviewer の指摘を親が確認せず",
+                "修正先の選択や不採用判断を reviewer に委ねる",
+                "責務・test・security reviewer を一律起動する",
+                "reviewer の判定を親の受け入れ判断に置き換える",
+            ),
+            "manual checks": (
+                "read-only の `writing-principles-reviewer` を必須ゲート",
+                "`no-change` または指摘ID付き Data",
+                "親が各指摘ID",
+                "`review-patch-refactorer`、元 Implementer、不採用",
+                "修正後に親QAと reviewer 再確認",
+                "親が最終受け入れ判断",
+            ),
+        }
+        for section_name, contracts in section_contracts.items():
+            for contract in contracts:
+                with self.subTest(section=section_name, contract=contract):
+                    self.assertIn(contract, eval_sections[section_name])
+
     def test_repository_writing_review_gate_accepts_no_change_result(self) -> None:
         """Treat a review with no findings as a successful gate result."""
         skills = self._repository_skill_texts()
