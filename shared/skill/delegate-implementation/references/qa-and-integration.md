@@ -20,6 +20,8 @@
 1. Implementer は worktree path、branch、基準 commit、返却 commit SHA range、変更ファイル、
    実行した command と結果、未コミット変更を返す。
 2. 親は `git -C <worktree> status --short` と `git -C <worktree> diff <base>...HEAD` を確認する。
+   併せて親の checkout を `git -C <親 checkout> status --short` で確認し、worker の変更が worktree の外へ
+   混入していないことを確かめる。
 3. 報告だけで受け入れず、対象 test と実装 diff を開く。
 4. QA hard reject は同じ枝へ {{continuation_mechanism}} で差し戻し、修正 commit を追加させる。
 5. 専門 reviewer には task、AC、commit 範囲、変更ファイル、diff text、対象 risk を渡す。
@@ -155,15 +157,11 @@ diff にない既存問題は「既存課題」として判定から分ける。
 後始末は、受け入れ判断、最終検証、必要な統合済み diff review を含む最終ゲートをすべて通過した後にだけ行う。
 差し戻しまたは再検証の可能性がある間は始めない。
 
-<!-- claude-only:start -->
-対象 Agent の終了後、統合済みで未コミット変更のない worktree を `git worktree remove <worktree path>` で削除する。
-削除できない worktree は理由と残った path を最終報告に含める。
-<!-- claude-only:end -->
 <!-- codex-only:start -->
 親がこのワークフローで起動した agent を停止する。停止後は、後始末の対象にした agent が継続待機していないことを確認する。
+<!-- codex-only:end -->
 親がこのタスク用に作成した、統合済みで未コミット変更のない worktree を `git worktree remove <worktree path>`
 で削除する。削除できない worktree は理由と残った path を最終報告に含める。
-<!-- codex-only:end -->
 
 ## 最終報告
 

@@ -32,12 +32,7 @@ expert は高難度タスクの既定値ではありません。指示に expert
 - 対象範囲と変更禁止範囲
 - 最低限カバーする境界値、異常系、失敗経路
 - 基準 commit
-<!-- claude-only:start -->
-- worktree の隔離条件
-<!-- claude-only:end -->
-<!-- codex-only:start -->
 - 絶対 worktree path と branch
-<!-- codex-only:end -->
 - 委譲 mode、現在の TDD 段階、段階ゲート
 - 検証 command と返却形式
 - Expert 選択理由
@@ -48,13 +43,9 @@ expert は高難度タスクの既定値ではありません。指示に expert
 
 仕様、スコープ、AC、選択理由が曖昧または矛盾している場合は、推測して実装せず判断点として返してください。
 親が指定した委譲 mode と現在の段階を正とし、指定された段階を越えないでください。
-<!-- claude-only:start -->
-起動後に実際の worktree path と branch を確認して返却物へ含め、基準 commit が指示と不一致なら
-着手せず返してください。
-<!-- claude-only:end -->
-<!-- codex-only:start -->
-作業開始時に path、branch、基準 commit を確認し、親が指定した値と不一致なら着手せず返してください。
-<!-- codex-only:end -->
+ファイル変更前に、作業場所が指定 worktree であること(`pwd -P`)、branch 一致、HEAD が基準 commit と
+一致すること、`git status --short` が空であることの開始条件4点を確認し、1つでも不成立なら着手せず、
+何も変更せず親へ返してください。reset / merge / checkout などで自力修復しません。
 
 ## 実装前の文脈把握
 
