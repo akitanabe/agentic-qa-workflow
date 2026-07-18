@@ -1066,6 +1066,88 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn("".join(rule.split()), normalized_workflow)
                 self.assertNotIn("`writing-principles-refactorer`", workflow)
 
+    def test_repository_workflow_passes_selected_reviewer_context(self) -> None:
+        """Pass baseline review data plus purpose-selected context, never the whole repo."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        baseline_inputs = (
+            "レビュー対象とリスクに応じて、必要な周辺コンテキストを選択して reviewer へ渡す",
+            "タスクの目的",
+            "Acceptance Criteria",
+            "変更対象と commit 範囲",
+            "変更ファイル一覧と diff text",
+            "reviewer に確認させる具体的な観点",
+        )
+        optional_inputs = (
+            "関連する interface、type、schema",
+            "主要な呼び出し元",
+            "関連する既存テスト",
+            "周辺の directory 構造",
+            "generated file とその生成元",
+            "変更対象に関係する既存実装",
+            "外部指示",
+            "`AGENTS.md`",
+            "`CLAUDE.md`",
+            "`README.md`",
+        )
+        selection_constraints = (
+            "repository 全体を無条件に渡さない",
+            "reviewer の役割に関係しない情報を過剰に渡さない",
+            "親の結論だけを渡さず、reviewer が独立して判断できる一次情報を渡す",
+            "周辺コードを渡す場合は、なぜ必要なのかを明示する",
+            "外部指示と repository 内の指示が競合する場合は、優先関係を明示する",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in (
+                    baseline_inputs + optional_inputs + selection_constraints
+                ):
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
+    def test_repository_specialist_reviewers_accept_parent_selected_context(
+        self,
+    ) -> None:
+        """Use parent-selected context as evidence without widening the review scope."""
+        reviewer_sources = (
+            "responsibility-boundary-reviewer",
+            "test-quality-reviewer",
+            "security-side-effect-reviewer",
+        )
+        required_contracts = (
+            "親が選択した周辺コンテキスト",
+            "指摘範囲を広げる理由にしない",
+        )
+
+        for name in reviewer_sources:
+            with self.subTest(name=name):
+                source = self._repository_text(Path("shared/agents") / f"{name}.md")
+                for contract in required_contracts:
+                    self.assertIn(contract, source)
+
+    def test_repository_decision_corpus_extends_reviewer_context(self) -> None:
+        """Evaluate purpose-selected reviewer context with independent primary evidence."""
+        corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
+        eval_06 = corpus.split(
+            "## EVAL-06: 責務混在が見える返却 diff",
+            1,
+        )[1].split("## EVAL-07:", 1)[0]
+        required_contracts = (
+            "周辺コンテキストを選択し、必要な理由と併せて渡す",
+            "repository 全体を無条件に渡す",
+            "一次情報を渡さない",
+            "選択理由を明示し",
+        )
+
+        for contract in required_contracts:
+            with self.subTest(contract=contract):
+                self.assertIn(contract, eval_06)
+
     def test_repository_decision_corpus_requires_read_only_writing_review_gate(
         self,
     ) -> None:

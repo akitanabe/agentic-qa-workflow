@@ -27,6 +27,7 @@
 3. 報告だけで受け入れず、対象 test と実装 diff を開く。
 4. QA hard reject は同じ枝へ `followup_task` で差し戻し、修正 commit を追加させる。
 5. 専門 reviewer には task、AC、commit 範囲、変更ファイル、diff text、対象 risk を渡す。
+   周辺コンテキストの追加は「reviewer へ渡すコンテキスト」の選択基準に従う。
    新しい worker は別 worktree で始まり枝の変更を見ないため、作業 tree の存在を前提にさせない。
 6. 受け入れ後は統合 branch で `git cherry-pick <sha>` または commit range を取り込み、focused test と
    関連する build、typecheck、lint を再実行する。
@@ -66,6 +67,34 @@
 
 対象リスクがない専門 reviewer を無条件で起動しない。起動する場合は対象リスクと review 範囲を明示する。
 reviewer は最終的な受け入れ判断を行わない。親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。
+
+### reviewer へ渡すコンテキスト
+
+親は、レビュー対象とリスクに応じて、必要な周辺コンテキストを選択して reviewer へ渡す。
+各 reviewer には原則として次の基本情報を渡す。
+
+- タスクの目的と Acceptance Criteria
+- 変更対象と commit 範囲
+- 変更ファイル一覧と diff text
+- reviewer に確認させる具体的な観点
+
+diff だけでは関連する既存設計や利用箇所を判断できない場合は、次を必要に応じて追加する。
+
+- 関連する interface、type、schema
+- 主要な呼び出し元
+- 関連する既存テスト
+- 周辺の directory 構造
+- generated file とその生成元
+- 変更対象に関係する既存実装
+- 外部指示と、`AGENTS.md`、`CLAUDE.md`、`README.md` の関連部分
+
+コンテキストの選択では次を守る。
+
+- repository 全体を無条件に渡さない。
+- reviewer の役割に関係しない情報を過剰に渡さない。
+- 親の結論だけを渡さず、reviewer が独立して判断できる一次情報を渡す。
+- 周辺コードを渡す場合は、なぜ必要なのかを明示する。
+- 外部指示と repository 内の指示が競合する場合は、優先関係を明示する。
 
 ## 記述原則の必須完了ゲート
 
