@@ -936,10 +936,10 @@ class BuildPluginAssetsRepositoryContractsTest(
             for contract in required_contracts:
                 self.assertIn(contract, content, path)
 
-    def test_repository_workflows_route_specialists_and_run_final_writing_refactor(
+    def test_repository_workflows_route_specialists_and_require_mandatory_writing_review_gate(
         self,
     ) -> None:
-        """Route reviewers and refactorers without blurring their responsibilities."""
+        """Require writing review without making risk-based specialists mandatory."""
         workflows = self._repository_workflow_texts()
         risk_routes = {
             "responsibility-boundary-reviewer": "責務混在、設計境界、分散した副作用",
@@ -956,21 +956,10 @@ class BuildPluginAssetsRepositoryContractsTest(
             "対象リスクがない専門 reviewer を無条件で起動しない。",
             "対象リスクと review 範囲を明示する。",
             (
-                "`writing-principles-refactorer` は `lite` / `standard` / `strict` の"
-                "すべてで、実行しない明確な理由がない限り、最終成果物の統合前または"
-                "完了直前に起動する。"
+                "`writing-principles-reviewer` は `lite` / `standard` / `strict` の"
+                "すべてで、各実装枝を受け入れる前に必ず起動する。"
             ),
-            (
-                "差分に対象となるコード、テスト、コメント、DocBlock が存在しない場合は"
-                "省略できる。"
-            ),
-            (
-                "`review-patch-refactorer` による指摘修正後に"
-                "`writing-principles-refactorer` が最終成果物を確認・修正する。"
-            ),
-            "両 refactorer の担当範囲は排他的ではない。",
-            "refactorer がファイルを変更した後は、対象 test を再実行する。",
-            "親が変更後の diff と検証結果を確認してから受け入れる。",
+            "`writing-principles-reviewer` は必須の完了ゲート",
             "reviewer は最終的な受け入れ判断を行わない。",
             "親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。",
         )
@@ -983,12 +972,87 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn(f"| `{name}` | {risk} |", workflow)
                 for rule in required_rules:
                     self.assertIn("".join(rule.split()), normalized_workflow)
+                self.assertNotIn("`writing-principles-refactorer`", workflow)
+
+    def test_repository_writing_review_gate_accepts_no_change_result(self) -> None:
+        """Treat a review with no findings as a successful gate result."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "no-change",
+            "指摘が0件",
+            "正常なゲート通過結果",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
+    def test_repository_writing_review_gate_receives_parent_collected_bounded_data(
+        self,
+    ) -> None:
+        """Review only changed behavior using evidence collected by the parent."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "`git diff`",
+            "`git status`",
+            "commit log",
+            "テスト結果",
+            "親が取得",
+            "Data として `writing-principles-reviewer` へ渡す",
+            "基準 commit からの diff が導入または悪化させた問題",
+            "既存問題を広く探索しない",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
+    def test_repository_writing_review_gate_resolves_structured_findings_before_acceptance(
+        self,
+    ) -> None:
+        """Block acceptance until every identified finding has a recorded outcome."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "指摘ID",
+            "構造化 Data",
+            "reviewer の指摘が0件",
+            "すべての指摘が修正され、再確認を通過",
+            "親が不採用とした指摘について、理由が記録",
+            "未解決または判断未記録の指摘がある枝を受け入れない",
+            "`review-patch-refactorer` による修正後",
+            "`writing-principles-reviewer` を再実行",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
 
     def test_repository_workflow_defines_review_patch_routing_boundary(self) -> None:
         """Patch only green implementations with concrete, behavior-preserving findings."""
         workflows = self._repository_workflow_texts()
         startup_conditions = (
-            "専門 reviewer の具体的な指摘が存在する。",
+            "専門 reviewer（必須の `writing-principles-reviewer` を含む）の具体的な指摘が存在する。",
             "Acceptance Criteria は満たされている。",
             "機能的なテストは green である。",
             "修正範囲が局所的である。",
