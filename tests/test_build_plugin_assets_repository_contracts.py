@@ -1085,7 +1085,6 @@ class BuildPluginAssetsRepositoryContractsTest(
     def test_repository_workflows_limit_green_red_evidence_to_regression_tests(
         self,
     ) -> None:
-        """Keep new behavior red while documenting the regression-only exception."""
         skills = self._repository_skill_texts()
         implementation_contracts = (
             "新機能または未実装仕様を検証する test は Red 必須",
@@ -1132,7 +1131,6 @@ class BuildPluginAssetsRepositoryContractsTest(
     def test_repository_implementers_return_regression_green_evidence(
         self,
     ) -> None:
-        """Require every implementer profile to explain an initially green test."""
         required_contracts = (
             "新機能または未実装仕様では Red を必須",
             "既存挙動を固定する regression test に限り追加時点の Green を許可",
@@ -1160,7 +1158,6 @@ class BuildPluginAssetsRepositoryContractsTest(
     def test_repository_decision_corpus_covers_red_and_regression_green_cases(
         self,
     ) -> None:
-        """Evaluate both mandatory Red and the evidence-backed Green exception."""
         corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
         required_contracts = (
             "## EVAL-11: 新機能では Red 証跡が必須",
