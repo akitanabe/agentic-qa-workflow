@@ -5,7 +5,7 @@
 `plan-implementation-branches` Skill の出力であり、`delegate-implementation` への入力となる
 Branch Plan の正規スキーマ(正本)を定義する。確定済み Branch Plan を
 `delegate-implementation` へ渡せるが、受け渡しは親エージェントの責務であり、この Skill は
-委譲を開始しない。設計の経緯と確定事項は `docs/branch-plan-schema.md` と
+委譲を開始しない。設計の経緯と確定事項は
 [issue #46](https://github.com/akitanabe/agentic-qa-workflow/issues/46) を参照。
 
 ## 目次
