@@ -1184,7 +1184,7 @@ class BuildPluginAssetsRepositoryContractsTest(
     def test_repository_decision_corpus_records_parent_managed_worktree_contract(
         self,
     ) -> None:
-        """Fix the issue #49 worktree verification record and its retired-contract cleanup."""
+        """Record the issue #49 worktree contract verification and drop its superseded contract text."""
         corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
         normalized = "".join(corpus.split())
 
