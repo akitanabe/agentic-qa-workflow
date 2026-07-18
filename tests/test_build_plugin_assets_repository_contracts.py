@@ -1181,6 +1181,42 @@ class BuildPluginAssetsRepositoryContractsTest(
         for contract in required_contracts:
             self.assertIn("".join(contract.split()), normalized)
 
+    def test_repository_decision_corpus_records_parent_managed_worktree_contract(
+        self,
+    ) -> None:
+        """Fix the issue #49 worktree verification record and its retired-contract cleanup."""
+        corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
+        normalized = "".join(corpus.split())
+
+        required_contracts = (
+            "### worktree 契約の検証記録(issue #49)",
+            "親管理 worktree 契約を採用し、`isolation: \"worktree\"` を廃止する",
+            "HEAD 不一致を検出し、reset / merge / checkout などの自力修復を試みず",
+            "`git worktree remove` と `git branch -D`",
+            "既知の制約",
+            "## EVAL-19: 開始条件不成立を検出した未着手返却",
+            "契約通りの正常動作として扱う",
+            "branch 不一致、dirty status のいずれであっても同じ扱いとする。",
+            "worktree を基準 commit から作り直し",
+            "Implementer へ reset / merge / checkout などの自力修復を指示しない。",
+            "未着手返却を失敗として扱い、Implementer を責める、または mode を引き下げる。",
+            "HEAD 不一致だけを特別扱いし、path 不一致・branch 不一致・dirty status を異なる扱いにする。",
+            "Claude Code と Codex は「platform 共通の期待」に記載した起動、継続 mechanism だけが異なる。",
+            "Red 必須と親 QA は共通であり、agent の起動 mechanism だけが異なる。",
+            "引き上げ受諾後の段階継続 mechanism は platform に合わせてよい。",
+        )
+        for contract in required_contracts:
+            self.assertIn("".join(contract.split()), normalized)
+
+        stale_contracts = (
+            "Claude Code と Codex は「platform 共通の期待」に記載した worktree 準備、"
+            "起動、継続 mechanism だけが異なる。",
+            "Red 必須と親 QA は共通であり、worktree と agent の起動 mechanism だけが異なる。",
+            "引き上げ受諾後の worktree 準備・段階継続 mechanism は platform に合わせてよい。",
+        )
+        for contract in stale_contracts:
+            self.assertNotIn("".join(contract.split()), normalized)
+
     def test_repository_readmes_list_all_distributed_agents(self) -> None:
         """Make every bundled agent discoverable from both platform READMEs."""
         claude_readme = (REPOSITORY_ROOT / "plugins" / "claude" / "README.md").read_text(
