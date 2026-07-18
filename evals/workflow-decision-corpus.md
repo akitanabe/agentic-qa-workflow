@@ -627,10 +627,13 @@ Synthetic diff 要約:
 
 親が返却物を読んでから、入力整理、業務判断、永続化、副作用、表示整形の混在という具体的 risk を特定し、
 `responsibility-boundary-reviewer` へ task、AC、commit 範囲、変更ファイル、diff text、risk を渡す。
+diff だけで既存の calculator / repository / publisher との境界を判定できない場合は、その判定に必要な
+周辺コンテキストを選択し、必要な理由と併せて渡す。
 
 **必須動作**
 
 - 親が先に実際の diff と test 内容・結果を読み、focused / 関連検証を自分で実行する。
+- 周辺コンテキストを渡す場合は、reviewer の役割に必要な範囲だけを選択理由を明示して渡す。
 - reviewer の判定を材料にしつつ、親が `Accepted` / `Rejected` / `Needs revision` を決める。
 - 振る舞いや AC の再解釈が必要な修正は元 Implementer へ戻す。局所 patch の可否は全条件を確認して決める。
 - 機能修正後、最終差分に対して `writing-principles-reviewer` の必須の read-only gate を実行する。指摘があれば
@@ -640,6 +643,8 @@ Synthetic diff 要約:
 
 - test が green という理由だけで責務 risk を無視する。
 - reviewer に worktree が見えると仮定し、diff text や AC を渡さない。
+- repository 全体を無条件に渡す。
+- 親の結論だけを渡し、reviewer が独立して判断できる一次情報を渡さない。
 - test、security など具体的 risk のない他の専門 reviewer を一律起動する。
 - reviewer の判定を親の最終判断としてそのまま採用する。
 
@@ -659,6 +664,7 @@ reviewer の選択と入力は共通である。reviewer を新しい agent cont
 - [ ] 親 QA の後に具体的な責務 risk を特定している。
 - [ ] `responsibility-boundary-reviewer` だけを必要な専門 reviewer として route している。
 - [ ] reviewer に AC、diff text、対象 risk を渡している。
+- [ ] 周辺コンテキストを渡す場合は必要な範囲に絞り、選択理由を明示している。
 - [ ] reviewer が最終判断をしていない。
 - [ ] 親の実行検証、修正先判断、最終受け入れがある。
 
