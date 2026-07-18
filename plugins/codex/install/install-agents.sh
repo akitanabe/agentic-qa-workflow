@@ -75,9 +75,12 @@ required_agents=(
   expert-selection-reviewer.toml
   responsibility-boundary-reviewer.toml
   test-quality-reviewer.toml
-  writing-principles-refactorer.toml
+  writing-principles-reviewer.toml
   security-side-effect-reviewer.toml
   review-patch-refactorer.toml
+)
+retired_agents=(
+  writing-principles-refactorer.toml
 )
 
 if [[ ! -f "$version_file" ]]; then
@@ -98,8 +101,8 @@ installed_version="not installed"
 if [[ -f "$agent_dir/$installed_version_file_name" ]]; then
   installed_version="$(<"$agent_dir/$installed_version_file_name")"
 else
-  for agent in "${required_agents[@]}"; do
-    if [[ -e "$agent_dir/$agent" ]]; then
+  for agent in "${required_agents[@]}" "${retired_agents[@]}"; do
+    if [[ -e "$agent_dir/$agent" || -L "$agent_dir/$agent" ]]; then
       installed_version="unknown"
       break
     fi
@@ -115,6 +118,13 @@ for agent in "${required_agents[@]}"; do
     is_up_to_date=false
   fi
 done
+retired_agents_found=()
+for agent in "${retired_agents[@]}"; do
+  if [[ -e "$agent_dir/$agent" || -L "$agent_dir/$agent" ]]; then
+    is_up_to_date=false
+    retired_agents_found+=("$agent")
+  fi
+done
 
 if [[ "$is_up_to_date" == true ]]; then
   echo "Custom agents are up to date (version $bundled_version): $agent_dir"
@@ -127,6 +137,9 @@ Custom agent update status:
   bundled version:   $bundled_version
   target:            $agent_dir
 EOF
+for agent in "${retired_agents_found[@]}"; do
+  echo "  retired agent:    $agent"
+done
 
 if [[ "$mode" == "check" ]]; then
   exit 3
@@ -142,6 +155,9 @@ mkdir -p "$agent_dir"
 for agent in "${required_agents[@]}"; do
   cp "$agent_source_dir/$agent" "$agent_dir/"
 done
+for agent in "${retired_agents[@]}"; do
+  rm -f -- "$agent_dir/$agent"
+done
 printf '%s\n' "$bundled_version" > "$agent_dir/$installed_version_file_name"
 
 cat <<EOF
@@ -155,7 +171,7 @@ Installed agents:
   expert-selection-reviewer
   responsibility-boundary-reviewer
   test-quality-reviewer
-  writing-principles-refactorer
+  writing-principles-reviewer
   security-side-effect-reviewer
   review-patch-refactorer
 

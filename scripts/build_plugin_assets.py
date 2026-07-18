@@ -38,7 +38,7 @@ AGENT_NAMES = (
     "expert-selection-reviewer",
     "responsibility-boundary-reviewer",
     "test-quality-reviewer",
-    "writing-principles-refactorer",
+    "writing-principles-reviewer",
     "security-side-effect-reviewer",
     "review-patch-refactorer",
 )
@@ -258,7 +258,13 @@ def validate_agent_metadata(
         errors.append(Diagnostic(path, "[codex] table is required"))
         codex = {}
 
-    claude_keys = {"description", "model", "effort"}
+    claude_keys = {
+        "description",
+        "model",
+        "effort",
+        "tools",
+        "disallowed_tools",
+    }
     codex_keys = {
         "description",
         "model",
@@ -272,6 +278,18 @@ def validate_agent_metadata(
         errors.append(Diagnostic(path, f"[codex] has unknown key: {key}"))
     for key in ("description", "model", "effort"):
         validate_string_field(path, "claude", claude, key, errors)
+    for key in ("tools", "disallowed_tools"):
+        if key in claude and (
+            not isinstance(claude[key], list)
+            or not claude[key]
+            or any(not isinstance(tool, str) or not tool for tool in claude[key])
+        ):
+            errors.append(
+                Diagnostic(
+                    path,
+                    f"[claude].{key} must be a non-empty list of non-empty strings",
+                )
+            )
     for key in ("description", "model", "model_reasoning_effort"):
         validate_string_field(path, "codex", codex, key, errors)
     if "sandbox_mode" in codex:
@@ -528,12 +546,18 @@ def toml_multiline(value: str) -> str:
 def render_claude_agent(agent: AgentSource, body: str) -> str:
     """Render Claude YAML frontmatter followed by the common Markdown body."""
     metadata = agent.claude
+    tool_lines = ""
+    if "tools" in metadata:
+        tool_lines += f"tools: {', '.join(metadata['tools'])}\n"
+    if "disallowed_tools" in metadata:
+        tool_lines += f"disallowedTools: {', '.join(metadata['disallowed_tools'])}\n"
     return ensure_text(
         "---\n"
         f"name: {yaml_scalar(agent.name)}\n"
         f"description: {yaml_scalar(metadata['description'])}\n"
         f"model: {metadata['model']}\n"
         f"effort: {metadata['effort']}\n"
+        f"{tool_lines}"
         "---\n"
         f"{MARKDOWN_WARNING}\n\n"
         f"{normalize_body(body)}"

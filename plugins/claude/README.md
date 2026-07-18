@@ -24,8 +24,8 @@
   - 実装済み diff の責務混在、境界違反、副作用分散を確認します。
 - `agents/test-quality-reviewer.md`
   - 追加・変更されたテストの仕様対応、振る舞い、網羅性を確認します。
-- `agents/writing-principles-refactorer.md`
-  - `How / What / Why / Why Not` の配置、命名、説明を確認し、振る舞いを変えない局所的な問題を修正します。
+- `agents/writing-principles-reviewer.md`
+  - `How / What / Why / Why Not` の配置、命名、説明をread-onlyで確認し、ID付きの指摘Dataを返します。
 - `agents/security-side-effect-reviewer.md`
   - 外部 I/O、破壊的操作、機密データ、セキュリティ影響を確認します。
 - `agents/review-patch-refactorer.md`

@@ -79,7 +79,7 @@
 
 ### 専門 reviewer を選ぶとき
 
-責務境界、test 品質、security / side-effect の専門 reviewer は、`strict` であることだけを理由に一律で選びません。返却 diff に対応する具体的なリスクがある場合、またはユーザーが明示した場合だけ選び、reviewer に最終判断を委ねません。記述原則を最終整理する `writing-principles-refactorer` は、これらの専門 reviewer とは別の役割です。
+責務境界、test 品質、security / side-effect の専門 reviewer は、`strict` であることだけを理由に一律で選びません。返却 diff に対応する具体的なリスクがある場合、またはユーザーが明示した場合だけ選び、reviewer に最終判断を委ねません。記述原則をread-onlyで確認する `writing-principles-reviewer` は、これらの専門 reviewer とは別の役割です。
 
 ## 編集と生成
 

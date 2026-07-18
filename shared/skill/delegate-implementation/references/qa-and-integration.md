@@ -65,11 +65,39 @@
 対象リスクがない専門 reviewer を無条件で起動しない。起動する場合は対象リスクと review 範囲を明示する。
 reviewer は最終的な受け入れ判断を行わない。親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。
 
+## 記述原則の必須完了ゲート
+
+`writing-principles-reviewer` は必須の完了ゲートであり、上記の任意起動条件の対象外とする。
+`writing-principles-reviewer` は `lite` / `standard` / `strict` のすべてで、各実装枝を受け入れる前に必ず起動する。
+
+親が取得する `git diff`、`git status`、commit log、テスト結果を、Data として `writing-principles-reviewer` へ渡す。
+対象は基準 commit からの diff が導入または悪化させた問題に限定し、既存問題を広く探索しない。
+これらの情報を取得するために reviewer 自身へ Bash や編集 tool を与えない。
+
+reviewer は、指摘がある場合は指摘IDを含む構造化 Data を返す。
+`no-change` は reviewer の指摘が0件である正常なゲート通過結果として扱う。
+指摘がある場合、親は各指摘IDについて内容を確認し、修正先または不採用を判断して、その判断を記録する。
+
+- 局所的で振る舞いを変えない修正は `review-patch-refactorer` へ渡す。
+- テストケース追加、期待値の再検討、仕様判断、設計変更、振る舞い判断が必要な修正は元 Implementer へ差し戻す。
+- 指摘を採用しない場合は、親が指摘IDと不採用理由を記録する。
+
+`review-patch-refactorer` による修正後の親QAと reviewer 再確認は、元 Implementer による修正にも適用する。
+`review-patch-refactorer` または元 Implementer による修正後は、親が変更後の diff とテスト結果を確認し、
+`writing-principles-reviewer` を再実行する。
+
+指摘がある場合は、次のいずれかになるまで枝を受け入れない。
+
+- すべての指摘が修正され、再確認を通過している。
+- 親が不採用とした指摘について、理由が記録されている。
+
+未解決または判断未記録の指摘がある枝を受け入れない。
+
 ## 修正先の選択
 
 次の条件をすべて満たす場合に限り `review-patch-refactorer` を起動する。
 
-- 専門 reviewer の具体的な指摘が存在する。
+- 専門 reviewer（必須の `writing-principles-reviewer` を含む）の具体的な指摘が存在する。
 - Acceptance Criteria は満たされている。
 - 機能的なテストは green である。
 - 修正範囲が局所的である。
@@ -92,18 +120,6 @@ reviewer は最終的な受け入れ判断を行わない。親が diff、テス
 - test 品質の修正にケース追加や期待値の再検討が必要
 - `strict` mode の Red / Green / Refactor 継続
 - 元の調査・実装判断が必要
-
-`writing-principles-refactorer` は `lite` / `standard` / `strict` のすべてで、実行しない明確な理由がない限り、
-最終成果物の統合前または完了直前に起動する。差分に対象となるコード、テスト、コメント、DocBlock が
-存在しない場合は省略できる。省略理由は最終報告へ含める。
-
-対象 worktree、branch、基準 commit、対象 commit 範囲、AC、最終 diff、検証 command を渡し、
-記述原則、自明な comment、説明配置、局所的な命名、test 名だけを振る舞いを変えずに修正させる。
-commit log は検出・報告だけを行わせ、既存 commit を rewrite させない。
-
-`review-patch-refactorer` による指摘修正後に `writing-principles-refactorer` が最終成果物を確認・修正する。
-両 refactorer の担当範囲は排他的ではない。refactorer がファイルを変更した後は、対象 test を再実行する。
-親が変更後の diff と検証結果を確認してから受け入れる。
 
 親がその場で直してよいのは、返却後の import 整理と formatter 適用だけとする。共有土台の作成は
 委譲前の明示的な例外であり、返却後の仕様判断、case 追加、命名、comment、test 名、設計修正を親が

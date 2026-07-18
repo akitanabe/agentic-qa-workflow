@@ -10,6 +10,7 @@ from build_plugin_assets_test_support import (
     CLAUDE_MODEL_PROFILES,
     CLAUDE_PROFILE_PATH,
     CODEX_MODEL_PROFILES,
+    CODEX_PROFILE_PATH,
     DELEGATE_SKILL,
     GENERATED_MARKDOWN_WARNING,
     GENERATED_SKILL_REFERENCE_PATHS,
@@ -836,33 +837,92 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for term in focus_terms:
                     self.assertIn(term, source)
 
-    def test_repository_refactorers_define_writable_narrow_contracts(self) -> None:
-        """Allow only the two refactorers to apply their explicitly bounded patches."""
-        expected_contracts = {
-            "writing-principles-refactorer": (
-                "How / What / Why / Why Not",
-                "自明または重複したコメントの削除",
-                "テストの期待値変更",
-                "既存コミットの rewrite は行いません",
-            ),
-            "review-patch-refactorer": (
-                "専門 reviewer の具体的な指摘",
-                "Acceptance Criteria",
-                "指摘されていない箇所のついで修正",
-                "追加した修正コミット SHA",
-            ),
+    def test_repository_writing_principles_reviewer_defines_review_scope_and_finding_contract(
+        self,
+    ) -> None:
+        """Review writing artifacts and return actionable findings as structured data."""
+        source = self._repository_text(
+            Path("shared/agents/writing-principles-reviewer.md")
+        )
+        review_scope = (
+            "コード",
+            "変数名",
+            "関数名",
+            "テスト名",
+            "コメント",
+            "DocBlock",
+        )
+        finding_fields = (
+            "指摘ID",
+            "対象ファイルと該当箇所",
+            "違反している記述原則",
+            "問題である理由",
+            "外部から観測可能な振る舞いへの影響有無",
+            "局所的かつ振る舞いを変えず修正可能か",
+            "推奨する修正先",
+        )
+
+        for contract in review_scope + finding_fields:
+            self.assertIn(contract, source)
+        self.assertIn("自身はファイルを変更しない", source)
+
+    def test_repository_writing_principles_reviewer_platforms_reject_file_modification(
+        self,
+    ) -> None:
+        """Publish platform-enforced read-only settings with the reviewer definition."""
+        name = "writing-principles-reviewer"
+        source_metadata = self._agent_source_metadata(name)
+        claude_artifact = self._repository_text(CLAUDE_PROFILE_PATH / f"{name}.md")
+        codex_artifact = self._codex_agent_artifact_metadata(name)
+
+        self.assertEqual(
+            ["Read", "Grep", "Glob"],
+            source_metadata["claude"]["tools"],
+        )
+        self.assertEqual(
+            ["Bash", "Edit", "Write", "NotebookEdit"],
+            source_metadata["claude"]["disallowed_tools"],
+        )
+        self.assertIn("tools: Read, Grep, Glob\n", claude_artifact)
+        self.assertIn(
+            "disallowedTools: Bash, Edit, Write, NotebookEdit\n",
+            claude_artifact,
+        )
+        self.assertEqual("read-only", source_metadata["codex"]["sandbox_mode"])
+        self.assertEqual("read-only", codex_artifact["sandbox_mode"])
+
+    def test_repository_review_patch_refactorer_defines_writable_narrow_contract(
+        self,
+    ) -> None:
+        """Allow the patch refactorer to apply only its explicitly bounded patch."""
+        name = "review-patch-refactorer"
+        agent_texts = {
+            "shared": self._repository_text(Path("shared/agents") / f"{name}.md"),
+            "claude": self._repository_text(CLAUDE_PROFILE_PATH / f"{name}.md"),
+            "codex": self._repository_text(CODEX_PROFILE_PATH / f"{name}.toml"),
         }
+        required_contracts = (
+            "親が確認した reviewer の具体的な指摘",
+            "Acceptance Criteria は満たされている。",
+            "局所的で振る舞いを変えない修正",
+            "指摘されていない箇所のついで修正",
+            "追加した修正コミット SHA",
+        )
+        implementer_route = (
+            "テストケース追加、期待値の再検討、仕様判断、設計変更、振る舞い判断が"
+            "必要な場合はファイルを変更せず、元 Implementer への差し戻し"
+        )
+        metadata = self._agent_source_metadata(name)
+        artifact = self._codex_agent_artifact_metadata(name)
 
-        for name, contracts in expected_contracts.items():
-            with self.subTest(name=name):
-                source = self._repository_text(Path("shared/agents") / f"{name}.md")
-                metadata = self._agent_source_metadata(name)
-                artifact = self._codex_agent_artifact_metadata(name)
-
-                self.assertNotIn("sandbox_mode", metadata["codex"])
-                self.assertNotIn("sandbox_mode", artifact)
-                for contract in contracts:
-                    self.assertIn(contract, source)
+        self.assertNotIn("sandbox_mode", metadata["codex"])
+        self.assertNotIn("sandbox_mode", artifact)
+        for platform, agent in agent_texts.items():
+            with self.subTest(platform=platform):
+                normalized_agent = "".join(agent.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_agent)
+                self.assertIn("".join(implementer_route.split()), normalized_agent)
 
     def test_security_reviewer_is_defensive_and_detection_only(self) -> None:
         """Keep security review defensive, actionable, and inside its assigned scope."""
@@ -885,10 +945,10 @@ class BuildPluginAssetsRepositoryContractsTest(
             for contract in required_contracts:
                 self.assertIn(contract, content, path)
 
-    def test_repository_workflows_route_specialists_and_run_final_writing_refactor(
+    def test_repository_workflows_route_specialists_and_require_mandatory_writing_review_gate(
         self,
     ) -> None:
-        """Route reviewers and refactorers without blurring their responsibilities."""
+        """Require writing review without making risk-based specialists mandatory."""
         workflows = self._repository_workflow_texts()
         risk_routes = {
             "responsibility-boundary-reviewer": "責務混在、設計境界、分散した副作用",
@@ -905,21 +965,10 @@ class BuildPluginAssetsRepositoryContractsTest(
             "対象リスクがない専門 reviewer を無条件で起動しない。",
             "対象リスクと review 範囲を明示する。",
             (
-                "`writing-principles-refactorer` は `lite` / `standard` / `strict` の"
-                "すべてで、実行しない明確な理由がない限り、最終成果物の統合前または"
-                "完了直前に起動する。"
+                "`writing-principles-reviewer` は `lite` / `standard` / `strict` の"
+                "すべてで、各実装枝を受け入れる前に必ず起動する。"
             ),
-            (
-                "差分に対象となるコード、テスト、コメント、DocBlock が存在しない場合は"
-                "省略できる。"
-            ),
-            (
-                "`review-patch-refactorer` による指摘修正後に"
-                "`writing-principles-refactorer` が最終成果物を確認・修正する。"
-            ),
-            "両 refactorer の担当範囲は排他的ではない。",
-            "refactorer がファイルを変更した後は、対象 test を再実行する。",
-            "親が変更後の diff と検証結果を確認してから受け入れる。",
+            "`writing-principles-reviewer` は必須の完了ゲート",
             "reviewer は最終的な受け入れ判断を行わない。",
             "親が diff、テスト、検証結果を確認し、最終的な受け入れを判断する。",
         )
@@ -932,12 +981,173 @@ class BuildPluginAssetsRepositoryContractsTest(
                     self.assertIn(f"| `{name}` | {risk} |", workflow)
                 for rule in required_rules:
                     self.assertIn("".join(rule.split()), normalized_workflow)
+                self.assertNotIn("`writing-principles-refactorer`", workflow)
+
+    def test_repository_decision_corpus_requires_read_only_writing_review_gate(
+        self,
+    ) -> None:
+        """Evaluate the mandatory writing review as a read-only post-return gate."""
+        corpus = self._repository_text(Path("evals/workflow-decision-corpus.md"))
+        common_responsibilities = corpus.split(
+            "### 全委譲ケースで親が保持する責任",
+            1,
+        )[1].split("## 共通の手動評価手順", 1)[0]
+        eval_08 = corpus.split(
+            "## EVAL-08: 機能的に green だが記述原則を外す差分",
+            1,
+        )[1].split("## EVAL-09:", 1)[0]
+
+        section_boundaries = {
+            "expected decision": ("**期待する判断**", "**必須動作**"),
+            "required actions": ("**必須動作**", "**禁止動作**"),
+            "prohibited actions": ("**禁止動作**", "**許容される差異**"),
+            "manual checks": ("**手動評価項目**", None),
+        }
+        eval_sections = {}
+        for name, (start, end) in section_boundaries.items():
+            self.assertEqual(1, eval_08.count(start))
+            section = eval_08.split(start, 1)[1]
+            if end is not None:
+                self.assertEqual(1, section.count(end))
+                section = section.split(end, 1)[0]
+            eval_sections[name] = section
+
+        with self.subTest(contract="retired agent name"):
+            self.assertNotIn("writing-principles-refactorer", corpus)
+        with self.subTest(contract="retired completion gate role"):
+            self.assertNotIn("記述 refactorer", corpus)
+
+        for contract in (
+            "`writing-principles-reviewer`",
+            "`lite`、`standard`、`strict`",
+            "必須の完了ゲート",
+            "各実装枝を受け入れる前",
+        ):
+            with self.subTest(
+                section="common responsibilities",
+                contract=contract,
+            ):
+                self.assertIn(contract, common_responsibilities)
+
+        section_contracts = {
+            "expected decision": (
+                "専門 reviewer を追加せず",
+                "`writing-principles-reviewer` を最終差分へ起動する",
+                "reviewer は自身で変更せず",
+                "`no-change` または指摘ID付きの Data",
+                "親が各指摘ID",
+                "修正先または不採用",
+            ),
+            "required actions": (
+                "親が先に diff と test",
+                "`review-patch-refactorer` へ渡す",
+                "元 Implementer へ差し戻す",
+                "修正後は親QA",
+                "reviewer 再確認",
+            ),
+            "prohibited actions": (
+                "`writing-principles-reviewer` 自身にファイル変更",
+                "reviewer の指摘を親が確認せず",
+                "修正先の選択や不採用判断を reviewer に委ねる",
+                "責務・test・security reviewer を一律起動する",
+                "reviewer の判定を親の受け入れ判断に置き換える",
+            ),
+            "manual checks": (
+                "read-only の `writing-principles-reviewer` を必須ゲート",
+                "`no-change` または指摘ID付き Data",
+                "親が各指摘ID",
+                "`review-patch-refactorer`、元 Implementer、不採用",
+                "修正後に親QAと reviewer 再確認",
+                "親が最終受け入れ判断",
+            ),
+        }
+        for section_name, contracts in section_contracts.items():
+            for contract in contracts:
+                with self.subTest(section=section_name, contract=contract):
+                    self.assertIn(contract, eval_sections[section_name])
+
+    def test_repository_writing_review_gate_accepts_no_change_result(self) -> None:
+        """Treat a review with no findings as a successful gate result."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "no-change",
+            "指摘が0件",
+            "正常なゲート通過結果",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
+    def test_repository_writing_review_gate_receives_parent_collected_bounded_data(
+        self,
+    ) -> None:
+        """Review only changed behavior using evidence collected by the parent."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "`git diff`",
+            "`git status`",
+            "commit log",
+            "テスト結果",
+            "親が取得",
+            "Data として `writing-principles-reviewer` へ渡す",
+            "基準 commit からの diff が導入または悪化させた問題",
+            "既存問題を広く探索しない",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
+    def test_repository_writing_review_gate_resolves_structured_findings_before_acceptance(
+        self,
+    ) -> None:
+        """Block acceptance until every identified finding has a recorded outcome."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "指摘ID",
+            "構造化 Data",
+            "各指摘ID",
+            "修正先または不採用",
+            "判断を記録",
+            "reviewer の指摘が0件",
+            "すべての指摘が修正され、再確認を通過",
+            "親が不採用とした指摘について、理由が記録",
+            "未解決または判断未記録の指摘がある枝を受け入れない",
+            "`review-patch-refactorer` による修正後",
+            "`writing-principles-reviewer` を再実行",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
 
     def test_repository_workflow_defines_review_patch_routing_boundary(self) -> None:
         """Patch only green implementations with concrete, behavior-preserving findings."""
         workflows = self._repository_workflow_texts()
         startup_conditions = (
-            "専門 reviewer の具体的な指摘が存在する。",
+            "専門 reviewer（必須の `writing-principles-reviewer` を含む）の具体的な指摘が存在する。",
             "Acceptance Criteria は満たされている。",
             "機能的なテストは green である。",
             "修正範囲が局所的である。",
@@ -953,7 +1163,11 @@ class BuildPluginAssetsRepositoryContractsTest(
             "テスト失敗",
             "正常系・異常系・境界値不足",
             "振る舞い変更が必要",
+            "テストケース追加",
             "ケース追加や期待値の再検討が必要",
+            "仕様判断",
+            "設計変更",
+            "振る舞い判断",
             "`strict` mode の Red / Green / Refactor 継続",
         )
 
@@ -966,6 +1180,30 @@ class BuildPluginAssetsRepositoryContractsTest(
                 for route in implementer_routes:
                     self.assertIn("".join(route.split()), normalized_workflow)
 
+    def test_repository_writing_review_gate_rechecks_every_fix_before_acceptance(
+        self,
+    ) -> None:
+        """Return every fix route to parent QA and the mandatory review gate."""
+        skills = self._repository_skill_texts()
+        qa_workflows = {
+            "shared": skills.source_references["qa-and-integration.md"],
+            "claude": skills.claude_references["qa-and-integration.md"],
+            "codex": skills.codex_references["qa-and-integration.md"],
+        }
+        required_contracts = (
+            "`review-patch-refactorer` または元 Implementer による修正後",
+            "親が変更後の diff とテスト結果を確認",
+            "`writing-principles-reviewer` を再実行",
+            "再確認を通過",
+            "枝を受け入れない",
+        )
+
+        for platform, workflow in qa_workflows.items():
+            with self.subTest(platform=platform):
+                normalized_workflow = "".join(workflow.split())
+                for contract in required_contracts:
+                    self.assertIn("".join(contract.split()), normalized_workflow)
+
     def test_repository_distribution_does_not_reference_retired_agent_names(self) -> None:
         """Remove retired names from every distributed source and generated surface."""
         paths = (
@@ -975,7 +1213,6 @@ class BuildPluginAssetsRepositoryContractsTest(
             REPOSITORY_ROOT / "tests",
         )
         retired_names = (
-            "writing-principles-" + "reviewer",
             "refactor-patch-" + "agent",
         )
 
@@ -986,6 +1223,22 @@ class BuildPluginAssetsRepositoryContractsTest(
                 content = file_path.read_text(encoding="utf-8")
                 for name in retired_names:
                     self.assertNotIn(name, content, file_path)
+
+    def test_repository_generated_agents_match_canonical_inventory(self) -> None:
+        """Publish the reviewer under its new name without retaining old agent assets."""
+        expected_claude = {f"{name}.md" for name in AGENT_NAMES}
+        expected_codex = {f"{name}.toml" for name in AGENT_NAMES}
+        actual_claude = {
+            path.name
+            for path in (REPOSITORY_ROOT / CLAUDE_PROFILE_PATH).glob("*.md")
+        }
+        actual_codex = {
+            path.name
+            for path in (REPOSITORY_ROOT / CODEX_PROFILE_PATH).glob("*.toml")
+        }
+
+        self.assertEqual(expected_claude, actual_claude)
+        self.assertEqual(expected_codex, actual_codex)
 
     def test_repository_workflows_select_delegation_modes_without_crossing_direct_boundary(
         self,
