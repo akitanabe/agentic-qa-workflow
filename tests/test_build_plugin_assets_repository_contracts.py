@@ -703,7 +703,7 @@ class BuildPluginAssetsRepositoryContractsTest(
         required_data = (
             "実装枝の目的",
             "Acceptance Criteria",
-            "対象範囲と変更禁止範囲",
+            "変更を許可する物理的範囲、変更を禁止する物理的範囲、この枝でやらないこと",
             "最新の基準コミット",
             "コードから読み取れない確定済みの設計判断や制約",
             "委譲 mode と TDD 要件",
@@ -1814,6 +1814,28 @@ class PlanImplementationBranchesContractsTest(
                 for contract in required:
                     self.assertIn("".join(contract.split()), normalized)
 
+    def test_plan_references_define_branch_responsibility_exclusions(self) -> None:
+        """Generate responsibility exclusions separately from physical path limits."""
+        reference_contracts = {
+            "branch-plan-schema.md": (
+                "`allowed_paths` は変更を許可する物理的なファイル範囲",
+                "`forbidden_paths` は変更を禁止する物理的なファイル範囲",
+                "`out_of_scope` は許可範囲内でもこの枝では担当しない責務・作業",
+            ),
+            "branch-splitting.md": (
+                "同じ `allowed_paths` 内に複数の責務・作業が含まれ",
+                "担当しない責務・作業を `out_of_scope` に列挙する",
+                "パスで表現できる禁止範囲を `out_of_scope` で代用しない",
+            ),
+        }
+
+        for reference, contracts in reference_contracts.items():
+            for platform, text in self._plan_reference_texts(reference).items():
+                with self.subTest(reference=reference, platform=platform):
+                    normalized = "".join(text.split())
+                    for contract in contracts:
+                        self.assertIn("".join(contract.split()), normalized)
+
 
 INTAKE_REFERENCE = "branch-plan-intake.md"
 PLAN_SCHEMA_REFERENCE = "branch-plan-schema.md"
@@ -1861,6 +1883,19 @@ class DelegateImplementationIntakeContractsTest(
             ),
             "codex": self._repository_text(
                 generated_skill_path("codex", DELEGATE_SKILL)
+            ),
+        }
+
+    def _delegate_reference_texts(self, name: str) -> dict[str, str]:
+        return {
+            "source": self._repository_text(
+                shared_skill_reference_path(DELEGATE_SKILL, name)
+            ),
+            "claude": self._repository_text(
+                generated_skill_reference_path("claude", DELEGATE_SKILL, name)
+            ),
+            "codex": self._repository_text(
+                generated_skill_reference_path("codex", DELEGATE_SKILL, name)
             ),
         }
 
@@ -1927,6 +1962,32 @@ class DelegateImplementationIntakeContractsTest(
                 normalized = "".join(text.split())
                 for rule in gate_rules:
                     self.assertIn("".join(rule.split()), normalized)
+
+    def test_delegate_references_preserve_branch_responsibility_exclusions(self) -> None:
+        """Carry exclusions unchanged into delegation and verify them before acceptance."""
+        reference_contracts = {
+            "branch-plan-intake.md": (
+                "責務制約は `out_of_scope` の各項目を意味を変えず",
+                "委譲 prompt の「この枝でやらないこと」へ渡す",
+            ),
+            "implementation-branches.md": (
+                "- 変更を許可する物理的範囲: <allowed_paths>",
+                "- 変更を禁止する物理的範囲: <forbidden_paths>",
+                "- この枝でやらないこと: <out_of_scope。空なら「なし」>",
+                "必要になった場合は変更せず、必要性と理由を親へ報告する",
+            ),
+            "qa-and-integration.md": (
+                "基準 commit からの diff",
+                "枝の `out_of_scope` に列挙された責務・作業を含まないこと",
+            ),
+        }
+
+        for reference, contracts in reference_contracts.items():
+            for platform, text in self._delegate_reference_texts(reference).items():
+                with self.subTest(reference=reference, platform=platform):
+                    normalized = "".join(text.split())
+                    for contract in contracts:
+                        self.assertIn("".join(contract.split()), normalized)
 
     def test_intake_reference_resolves_the_cross_skill_schema_link(self) -> None:
         """Resolve the schema code table link across shared and generated trees."""
