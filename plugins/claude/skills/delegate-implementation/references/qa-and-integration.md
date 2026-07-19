@@ -38,8 +38,9 @@
 `standard` と `strict` では全観点を手を動かして確認する。`lite` では観点0（diff を読む）と観点5
 （自分で green を確認）に絞ってよい。`lite` の前提が崩れた場合は mode を引き上げる。
 
-0. **実装 diff** — scope 逸脱、既存設計からの逸脱、公開契約の破壊、既存 test の弱体化、未承認依存、
-   error handling、resource 解放、concurrency、security を確認する。
+0. **実装 diff** — 基準 commit からの diff を開き、物理的な scope 逸脱に加えて、枝の
+   `out_of_scope` に列挙された責務・作業を含まないことを確認する。既存設計からの逸脱、公開契約の破壊、
+   既存 test の弱体化、未承認依存、error handling、resource 解放、concurrency、security も確認する。
 1. **振る舞い** — test が private API や実装手順ではなく、外部から観測可能な振る舞いを検証しているか。
 2. **網羅性** — AC、境界値、異常系、例外経路、分岐、期待値の根拠が実際の test と一致するか。
 3. **TDD** — 新機能または未実装仕様なら Red 出力または段階 commit を確認し、test を実装へ合わせて

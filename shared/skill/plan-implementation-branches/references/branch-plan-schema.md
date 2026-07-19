@@ -29,6 +29,9 @@ Branch Plan の正規スキーマ(正本)を定義する。確定済み Branch P
 - `validation.blocking` は安定した code を持つ violation の配列とし、planning Skill と Executor が
   同じ検査規則を共有する。承認可否は blocking violation の有無だけで決まり、自己評価 boolean は
   参考情報に限定する。
+- `allowed_paths` は変更を許可する物理的なファイル範囲、`forbidden_paths` は変更を禁止する物理的な
+  ファイル範囲を表す。`out_of_scope` は許可範囲内でもこの枝では担当しない責務・作業を表し、
+  パス制約とは独立して扱う。
 
 ## スキーマ本体
 
@@ -110,7 +113,7 @@ branches:
     tests: [unit | integration | e2e | contract | regression]
     # 1つ以上必須。テスト種別だけを保持し、具体的なテスト名・実行 command は持たない
     # (「tests / stage_tests の意味」の節を参照)
-    out_of_scope: []
+    out_of_scope: []                           # 許可範囲内でもこの枝では担当しない責務・作業
     risk:
       level: low | medium | high
       reasons: []
